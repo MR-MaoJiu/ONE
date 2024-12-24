@@ -10,7 +10,7 @@ from utils.logger import get_logger
 from services.llm_service import LLMService
 from ..memory.snapshot import SnapshotManager, BaseMemory
 from ..memory.snapshot_generator import SnapshotGenerator
-from prompts.memory_retrieval_prompts import get_memory_retrieval_prompt
+from prompts.memory_prompts import MEMORY_RETRIEVAL_TEMPLATE
 
 # 创建logger
 snapshot_processor_logger = get_logger('snapshot_processor')
@@ -109,9 +109,10 @@ class SnapshotProcessor:
                 })
             
             # 获取提示词
-            prompt = get_memory_retrieval_prompt(
-                query=query,
-                memory_data=json.dumps(memory_data, ensure_ascii=False, indent=2)
+            prompt = MEMORY_RETRIEVAL_TEMPLATE.format(
+                input=query,
+                history=json.dumps(context.get('history', []), ensure_ascii=False),
+                requirements=json.dumps(memory_data, ensure_ascii=False, indent=2)
             )
 
             # 调用LLM评估相关度
