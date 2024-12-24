@@ -112,8 +112,8 @@ class LLMService:
             # 记录接收到的查询
             self._record_thinking_step(
                 'input',
-                '接收到用户查询',
-                query
+                '理解用户问题',
+                f'我收到了你的问题："{query}"'
             )
             
             # 构建消息列表
@@ -121,11 +121,13 @@ class LLMService:
             
             # 添加历史记录
             if context and 'history' in context:
-                self._record_thinking_step(
-                    'context',
-                    '加载历史对话记录',
-                    f'加载了 {len(context["history"])} 条历史消息'
-                )
+                history_count = len(context["history"])
+                if history_count > 0:
+                    self._record_thinking_step(
+                        'context',
+                        '回忆对话历史',
+                        f'我回忆起了我们之前的 {history_count} 条对话'
+                    )
                 for msg in context['history']:
                     messages.append({
                         'role': 'user' if msg['is_user'] else 'assistant',
@@ -134,12 +136,12 @@ class LLMService:
             
             # 添加相关记忆
             if context and 'relevant_memories' in context:
-                memory_text = "相关记忆:\n"
+                memory_text = "我找到了一些相关的记忆：\n"
                 for memory in context['relevant_memories']:
-                    memory_text += f"- {memory['content']} (相关度: {memory['score']:.2f})\n"
+                    memory_text += f"- {memory['content']}\n"
                 self._record_thinking_step(
                     'memory',
-                    '检索相关记忆',
+                    '搜索相关记忆',
                     memory_text
                 )
                 messages.append({
@@ -147,18 +149,18 @@ class LLMService:
                     'content': memory_text
                 })
             
-            # 添加当前查询
+            # 记录思考过程
+            self._record_thinking_step(
+                'process',
+                '思考回答',
+                '我正在思考如何回答你的问题...'
+            )
+            
+            # 调用OpenAI API生成回复
             messages.append({
                 'role': 'user',
                 'content': query
             })
-            
-            # 记录开始生成回复
-            self._record_thinking_step(
-                'process',
-                '开始生成回复',
-                '使用OpenAI API生成回复'
-            )
             
             # 调用OpenAI API
             response = self.client.chat.completions.create(
@@ -171,14 +173,12 @@ class LLMService:
             # 提取回复文本
             reply = response.choices[0].message.content.strip()
             
-            # 记录生成的回复
+            # 记录输出结果
             self._record_thinking_step(
                 'output',
-                '生成回复完成',
-                reply
+                '生成回答',
+                f'我的回答是："{reply}"'
             )
-            
-            llm_logger.info("生成回复：%s", reply)
             
             return {
                 'response': reply,
@@ -186,13 +186,11 @@ class LLMService:
             }
             
         except Exception as e:
-            # 记录错误
             self._record_thinking_step(
                 'error',
-                '生成回复失败',
-                str(e)
+                '发生错误',
+                f'抱歉，处理过程中出现了错误：{str(e)}'
             )
-            llm_logger.error("生成回复失败：%s", str(e), exc_info=True)
             raise
 
     async def generate_json(self, prompt: str) -> Dict[str, Any]:
