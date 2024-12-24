@@ -11,7 +11,8 @@ export default createStore({
     snapshots: [], // 快照列表
     wsConnection: null, // WebSocket连接
     isConnected: false, // WebSocket连接状态
-    currentAnalysis: null // 当前分析数据
+    currentAnalysis: null, // 当前分析数据
+    thinkingSteps: [], // 新增：AI思考步骤
   },
   
   mutations: {
@@ -29,12 +30,25 @@ export default createStore({
     },
     SET_WS_CONNECTION(state, connection) {
       state.wsConnection = connection
+      state.isConnected = connection !== null
     },
     SET_CONNECTED(state, status) {
       state.isConnected = status
     },
     SET_CURRENT_ANALYSIS(state, analysis) {
       state.currentAnalysis = analysis
+    },
+    // 新增：设置思考步骤
+    SET_THINKING_STEPS(state, steps) {
+      state.thinkingSteps = steps
+    },
+    // 新增：添加思考步骤
+    ADD_THINKING_STEP(state, step) {
+      state.thinkingSteps.push(step)
+    },
+    // 新增：清空思考步骤
+    CLEAR_THINKING_STEPS(state) {
+      state.thinkingSteps = []
     }
   },
   
@@ -188,13 +202,23 @@ export default createStore({
     // 清空聊天记录
     clearMessages({ commit }) {
       commit('SET_MESSAGES', [])
-      commit('SET_CURRENT_ANALYSIS', null)
+      commit('CLEAR_THINKING_STEPS')
     },
     
     // 开始新对话
     startNewConversation({ commit }) {
       commit('SET_MESSAGES', [])
-      commit('SET_CURRENT_ANALYSIS', null)
+      commit('CLEAR_THINKING_STEPS')
+    },
+
+    // 新增：记录AI思考步骤
+    recordThinkingStep({ commit }, step) {
+      commit('ADD_THINKING_STEP', step)
+    },
+
+    // 新增：清空思考步骤
+    clearThinkingSteps({ commit }) {
+      commit('CLEAR_THINKING_STEPS')
     }
   }
 }) 

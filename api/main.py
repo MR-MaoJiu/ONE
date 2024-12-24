@@ -131,20 +131,31 @@ class Snapshot(BaseModel):
     category: str = Field(..., description="Snapshot category / 快照类别")
     importance: float = Field(..., ge=0, le=1, description="Importance score / 重要性分数")
 
-@app.post("/chat", response_model=Dict[str, str])
+class ChatResponse(BaseModel):
+    """
+    Chat response model / 聊天响应模型
+    
+    Attributes:
+        response: The response text / 响应文本
+        thinking_steps: The AI's thinking steps / AI的思考步骤
+    """
+    response: str = Field(..., description="Response text / 响应文本")
+    thinking_steps: List[Dict[str, Any]] = Field(..., description="AI's thinking steps / AI的思考步骤")
+
+@app.post("/chat", response_model=ChatResponse)
 async def chat(message: Message):
     """
     Process a chat message and return a response / 处理聊天消息并返回响应
     
-    Args / 参数:
+    Args:
         message: The chat message with content and optional context
                 聊天消息，包含内容和可选的上下文
         
-    Returns / 返回:
-        Dict with response text or error message
-        包含响应文本或错误消息的字典
+    Returns:
+        ChatResponse with response text and thinking steps
+        包含响应文本和思考步骤的ChatResponse对象
         
-    Raises / 异常:
+    Raises:
         HTTPException: If chat manager is not initialized or processing fails
                       如果聊天管理器未初始化或处理失败
     """
@@ -152,8 +163,11 @@ async def chat(message: Message):
         if not chat_manager:
             raise HTTPException(status_code=503, detail="Chat manager not initialized / 聊天管理器未初始化")
             
-        response = await chat_manager.chat(message.content)
-        return {"response": response}
+        result = await chat_manager.chat(message.content)
+        return ChatResponse(
+            response=result['response'],
+            thinking_steps=result['thinking_steps']
+        )
         
     except Exception as e:
         api_logger.error(f"Failed to process chat request / 处理聊天请求失败: {str(e)}", exc_info=True)
@@ -164,7 +178,7 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for real-time chat / 用于实时聊天的WebSocket端点
     
-    Handles / 处理:
+    Handles:
     - Connection initialization / 连接初始化
     - Message processing / 消息处理
     - Error handling / 错误处理
@@ -183,10 +197,13 @@ async def websocket_endpoint(websocket: WebSocket):
             message = Message(**data)
             
             # Process message / 处理消息
-            response = await chat_manager.chat(message.content)
+            result = await chat_manager.chat(message.content)
             
             # Send response / 发送响应
-            await websocket.send_json({"response": response})
+            await websocket.send_json({
+                "response": result['response'],
+                "thinking_steps": result['thinking_steps']
+            })
             
     except WebSocketDisconnect:
         api_logger.info("WebSocket connection closed / WebSocket连接已关闭")

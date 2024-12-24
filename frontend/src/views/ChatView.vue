@@ -1,162 +1,150 @@
 <template>
   <div class="chat-container">
-    <!-- 聊天区域 -->
-    <div class="main-section">
+    <div class="split-view">
+      <!-- 聊天区域 -->
       <div class="chat-section">
-        <div class="messages" ref="messagesContainer">
-          <div v-for="(message, index) in messages" :key="index" class="message" :class="message.type">
+        <div class="messages-container" ref="messagesContainer">
+          <div v-for="(message, index) in messages" :key="index" 
+               :class="['message', message.type === 'user' ? 'user-message' : 'system-message']">
             <div class="message-content">{{ message.content }}</div>
             <div class="message-time">{{ formatTime(message.timestamp) }}</div>
           </div>
         </div>
-        <div class="input-area">
-          <textarea 
-            v-model="inputMessage" 
+        
+        <div class="input-container">
+          <textarea
+            v-model="inputMessage"
             @keyup.enter.exact="sendMessage"
-            @keydown.enter.exact.prevent
-            placeholder="输入消息..."
-            class="message-input"
-            :disabled="isAnalyzing"
-            rows="1"
-            ref="messageInput"
-            @input="adjustTextareaHeight"
+            @keyup.enter.shift.exact="newLine"
+            placeholder="输入消息，按Enter发送，Shift+Enter换行"
+            rows="3"
           ></textarea>
-          <button @click="sendMessage" class="send-button" :disabled="isAnalyzing">
-            {{ isAnalyzing ? '思考中...' : '发送' }}
-          </button>
+          <div class="button-group">
+            <button @click="sendMessage" :disabled="!inputMessage.trim()">发送</button>
+            <button @click="clearChat">清空对话</button>
+            <button @click="toggleConnection">
+              {{ isConnected ? '断开WebSocket' : '连接WebSocket' }}
+            </button>
+          </div>
         </div>
       </div>
 
-      <!-- 分析区域 -->
-      <div class="analysis-section">
-        <div class="analysis-header">
-          <h3>思考过程</h3>
-        </div>
-        <div v-if="isAnalyzing" class="analysis-loading">
-          <div class="loading-spinner"></div>
-          <div class="loading-text">正在思考...</div>
-        </div>
-        <AnalysisViewer v-else-if="currentAnalysis" :analysis-steps="currentAnalysis" />
-        <div v-else class="analysis-placeholder">
-          这里会显示AI的思考过程...
-        </div>
-      </div>
+      <!-- 思考步骤区域 -->
+      <AIThinkingViewer :thinking-steps="thinkingSteps" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useStore } from 'vuex'
-import AnalysisViewer from '../components/AnalysisViewer.vue'
+import dayjs from 'dayjs'
+import AIThinkingViewer from '../components/AIThinkingViewer.vue'
 
 const store = useStore()
-const messages = computed(() => store.state.messages)
 const inputMessage = ref('')
 const messagesContainer = ref(null)
-const messageInput = ref(null)
-const isAnalyzing = ref(false)
-const currentAnalysis = computed(() => store.state.currentAnalysis)
 
-const formatTime = (timestamp) => {
-  const date = new Date(timestamp)
-  return date.toLocaleTimeString()
-}
+// 从store获取消息列表和连接状态
+const messages = computed(() => store.state.messages)
+const isConnected = computed(() => store.state.isConnected)
+const thinkingSteps = computed(() => store.state.thinkingSteps)
 
-const scrollToBottom = async () => {
-  await nextTick()
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
-}
+// 在组件挂载时初始化WebSocket连接
+onMounted(() => {
+  store.dispatch('initWebSocket')
+})
 
-const adjustTextareaHeight = () => {
-  const textarea = messageInput.value
-  if (!textarea) return
-  
-  textarea.style.height = 'auto'
-  textarea.style.height = textarea.scrollHeight + 'px'
-}
-
-const sendMessage = async () => {
-  if (!inputMessage.value.trim() || isAnalyzing.value) return
-
-  // 开始分析
-  isAnalyzing.value = true
-
-  try {
-    const messageData = {
-      content: inputMessage.value.trim(),
-      context: {
-        current_query: inputMessage.value.trim(),
-        history: messages.value.map(m => ({
-          is_user: m.type === 'user',
-          content: m.content,
-          timestamp: m.timestamp
-        }))
-      }
+// 监听消息列表变化，自动滚动到底部
+watch(messages, () => {
+  nextTick(() => {
+    if (messagesContainer.value) {
+      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
     }
+  })
+})
 
-    // 发送消息
-    await store.dispatch('sendMessage', messageData)
+// 发送消息
+async function sendMessage() {
+  if (!inputMessage.value.trim()) return
+  
+  try {
+    // 清空思考步骤
+    store.dispatch('clearThinkingSteps')
     
-    // 清空输入
+    if (isConnected.value) {
+      // 使用WebSocket发送
+      await store.dispatch('sendWebSocketMessage', {
+        content: inputMessage.value
+      })
+    } else {
+      // 使用HTTP发送
+      await store.dispatch('sendMessage', {
+        content: inputMessage.value
+      })
+    }
+    
+    // 清空输入框
     inputMessage.value = ''
-    messageInput.value.style.height = 'auto'
-
-    // 滚动到底部
-    await scrollToBottom()
-
   } catch (error) {
     console.error('发送消息失败:', error)
-    // 显示错误消息
-    store.commit('addMessage', {
-      type: 'system',
-      content: '抱歉，处理消息时出现错误。',
-      timestamp: new Date().toISOString()
-    })
-  } finally {
-    isAnalyzing.value = false
+    alert(error.message)
   }
 }
 
-onMounted(() => {
-  // 初始化时滚动到底部
-  scrollToBottom()
-  // 开始新对话
-  store.dispatch('startNewConversation')
-})
+// 处理换行
+function newLine(e) {
+  e.preventDefault()
+  inputMessage.value += '\n'
+}
+
+// 清空聊天记录
+function clearChat() {
+  if (confirm('确定要清空聊天记录吗？')) {
+    store.dispatch('clearMessages')
+  }
+}
+
+// 切换WebSocket连接
+function toggleConnection() {
+  if (isConnected.value) {
+    store.state.wsConnection?.close()
+  } else {
+    store.dispatch('initWebSocket')
+  }
+}
+
+// 格式化时间
+function formatTime(timestamp) {
+  return dayjs(timestamp).format('HH:mm:ss')
+}
 </script>
 
 <style scoped>
 .chat-container {
-  width: 100%;
   height: 100vh;
-  background-color: #f5f5f5;
   padding: 20px;
   box-sizing: border-box;
+  background: #f5f5f5;
 }
 
-.main-section {
-  width: 100%;
-  height: 100%;
+.split-view {
   display: flex;
   gap: 20px;
-  max-width: 1800px;
-  margin: 0 auto;
+  height: 100%;
 }
 
 .chat-section {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
   overflow: hidden;
 }
 
-.messages {
+.messages-container {
   flex: 1;
   overflow-y: auto;
   padding: 20px;
@@ -166,167 +154,82 @@ onMounted(() => {
 }
 
 .message {
-  max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
+  max-width: 80%;
+  padding: 12px;
+  border-radius: 8px;
   position: relative;
 }
 
-.message.user {
+.user-message {
   align-self: flex-end;
-  background-color: #1976d2;
+  background: #1976d2;
   color: white;
 }
 
-.message.system {
+.system-message {
   align-self: flex-start;
-  background-color: #f5f5f5;
+  background: #f5f5f5;
   color: #333;
 }
 
 .message-content {
-  margin-bottom: 4px;
   word-break: break-word;
-  line-height: 1.5;
   white-space: pre-wrap;
 }
 
 .message-time {
-  font-size: 0.75rem;
-  opacity: 0.7;
-  position: absolute;
-  bottom: -20px;
-  right: 8px;
+  font-size: 0.8em;
+  color: #888;
+  margin-top: 4px;
+  text-align: right;
 }
 
-.input-area {
+.input-container {
   padding: 20px;
-  background-color: white;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid #eee;
+}
+
+textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  resize: none;
+  font-size: 1em;
+  margin-bottom: 12px;
+}
+
+.button-group {
   display: flex;
   gap: 12px;
-  align-items: flex-end;
 }
 
-.message-input {
-  flex: 1;
-  padding: 12px;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  font-size: 1rem;
-  outline: none;
-  transition: all 0.3s;
-  resize: none;
-  min-height: 24px;
-  max-height: 150px;
-  line-height: 1.5;
-  font-family: inherit;
-}
-
-.message-input:focus {
-  border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.1);
-}
-
-.message-input:disabled {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
-}
-
-.send-button {
-  padding: 12px 24px;
-  background-color: #1976d2;
-  color: white;
+button {
+  padding: 8px 16px;
   border: none;
-  border-radius: 8px;
+  border-radius: 4px;
+  background: #1976d2;
+  color: white;
   cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.3s;
-  min-width: 100px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  transition: background-color 0.3s;
 }
 
-.send-button:hover:not(:disabled) {
-  background-color: #1565c0;
+button:hover:not(:disabled) {
+  background: #1565c0;
 }
 
-.send-button:disabled {
-  background-color: #90caf9;
+button:disabled {
+  background: #ccc;
   cursor: not-allowed;
 }
 
-.analysis-section {
-  width: 500px;
-  background-color: white;
-  border-radius: 12px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.analysis-header {
-  padding: 16px 20px;
-  border-bottom: 1px solid #e0e0e0;
-  background-color: #fafafa;
-}
-
-.analysis-header h3 {
-  margin: 0;
-  color: #333;
-  font-size: 1.1rem;
-}
-
-.analysis-loading {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 16px;
-}
-
-.loading-spinner {
-  width: 40px;
-  height: 40px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #1976d2;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-.loading-text {
-  color: #666;
-  font-size: 1rem;
-}
-
-.analysis-placeholder {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #666;
-  font-size: 1rem;
-  padding: 20px;
-  text-align: center;
-}
-
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
-}
-
-@media (max-width: 1200px) {
-  .main-section {
+@media (max-width: 768px) {
+  .split-view {
     flex-direction: column;
   }
   
-  .analysis-section {
-    width: 100%;
-    height: 400px;
+  .chat-section, .thinking-section {
+    height: 50vh;
   }
 }
 </style> 

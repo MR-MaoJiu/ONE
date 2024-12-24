@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import ChatView from '../components/ChatView.vue'
+import ChatView from '../views/ChatView.vue'
 import MemoryView from '../views/MemoryView.vue'
 
 const routes = [

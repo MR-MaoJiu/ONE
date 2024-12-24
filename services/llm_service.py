@@ -9,6 +9,7 @@ from pydantic import BaseModel
 from utils.logger import get_logger
 from dotenv import load_dotenv
 import json
+from datetime import datetime
 
 # 加载环境变量
 load_dotenv()
@@ -79,7 +80,21 @@ class LLMService:
         )
         llm_logger.info("OpenAI客户端创建完成")
         
-    async def chat(self, query: str, context: Dict[str, Any] = None) -> str:
+        # 初始化思考步骤列表
+        self.thinking_steps = []
+        
+    def _record_thinking_step(self, step_type: str, description: str, result: str = None):
+        """记录思考步骤"""
+        step = {
+            'type': step_type,
+            'description': description,
+            'result': result,
+            'timestamp': datetime.now().isoformat()
+        }
+        self.thinking_steps.append(step)
+        return step
+        
+    async def chat(self, query: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
         """
         聊天接口
         
@@ -88,14 +103,29 @@ class LLMService:
             context: 上下文信息
             
         Returns:
-            str: 助手回复
+            Dict[str, Any]: 包含回复文本和思考步骤的字典
         """
         try:
+            # 清空思考步骤
+            self.thinking_steps = []
+            
+            # 记录接收到的查询
+            self._record_thinking_step(
+                'input',
+                '接收到用户查询',
+                query
+            )
+            
             # 构建消息列表
             messages = []
             
             # 添加历史记录
             if context and 'history' in context:
+                self._record_thinking_step(
+                    'context',
+                    '加载历史对话记录',
+                    f'加载了 {len(context["history"])} 条历史消息'
+                )
                 for msg in context['history']:
                     messages.append({
                         'role': 'user' if msg['is_user'] else 'assistant',
@@ -107,6 +137,11 @@ class LLMService:
                 memory_text = "相关记忆:\n"
                 for memory in context['relevant_memories']:
                     memory_text += f"- {memory['content']} (相关度: {memory['score']:.2f})\n"
+                self._record_thinking_step(
+                    'memory',
+                    '检索相关记忆',
+                    memory_text
+                )
                 messages.append({
                     'role': 'system',
                     'content': memory_text
@@ -118,6 +153,13 @@ class LLMService:
                 'content': query
             })
             
+            # 记录开始生成回复
+            self._record_thinking_step(
+                'process',
+                '开始生成回复',
+                '使用OpenAI API生成回复'
+            )
+            
             # 调用OpenAI API
             response = self.client.chat.completions.create(
                 model=self.config.model,
@@ -128,13 +170,30 @@ class LLMService:
             
             # 提取回复文本
             reply = response.choices[0].message.content.strip()
+            
+            # 记录生成的回复
+            self._record_thinking_step(
+                'output',
+                '生成回复完成',
+                reply
+            )
+            
             llm_logger.info("生成回复：%s", reply)
             
-            return reply
+            return {
+                'response': reply,
+                'thinking_steps': self.thinking_steps
+            }
             
         except Exception as e:
+            # 记录错误
+            self._record_thinking_step(
+                'error',
+                '生成回复失败',
+                str(e)
+            )
             llm_logger.error("生成回复失败：%s", str(e), exc_info=True)
-            raise 
+            raise
 
     async def generate_json(self, prompt: str) -> Dict[str, Any]:
         """
