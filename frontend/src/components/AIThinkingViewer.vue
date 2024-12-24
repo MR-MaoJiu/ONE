@@ -7,14 +7,14 @@
       </div>
     </div>
     <div class="thinking-content">
-      <template v-if="displaySteps.length">
-        <div v-for="(step, index) in displaySteps" 
+      <template v-if="uniqueSteps.length">
+        <div v-for="(step, index) in uniqueSteps" 
              :key="index" 
              class="thinking-step"
              :class="{ 'fade-in': true }">
           <div class="step-number">
             <div class="number-circle">{{ index + 1 }}</div>
-            <div class="step-line" v-if="index < displaySteps.length - 1"></div>
+            <div class="step-line" v-if="index < uniqueSteps.length - 1"></div>
           </div>
           <div class="step-content">
             <div class="step-type">
@@ -44,7 +44,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import { useStore } from 'vuex'
 
 const store = useStore()
@@ -58,6 +58,16 @@ const props = defineProps({
 const displaySteps = ref([])
 const isThinking = ref(false)
 const stepDelay = 500 // 每个步骤显示的延迟时间（毫秒）
+
+// 去重后的思考步骤
+const uniqueSteps = computed(() => {
+  const steps = new Map()
+  displaySteps.value.forEach(step => {
+    const key = `${step.type}-${step.description}`
+    steps.set(key, step)
+  })
+  return Array.from(steps.values())
+})
 
 // 监听思考步骤的变化
 watch(() => props.thinkingSteps, (newSteps) => {
@@ -140,6 +150,7 @@ const formatResult = (result) => {
 
 <style scoped>
 .thinking-container {
+  width: 30%;
   height: 100%;
   display: flex;
   flex-direction: column;
@@ -352,6 +363,7 @@ const formatResult = (result) => {
 /* 响应式设计 */
 @media (max-width: 768px) {
   .thinking-container {
+    width: 100%;
     border-radius: 0;
   }
   
