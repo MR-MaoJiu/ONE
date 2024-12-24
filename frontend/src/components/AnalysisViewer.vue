@@ -7,110 +7,57 @@
            :class="{ active: currentStep === index }">
         <div class="step-header" @click="selectStep(index)">
           <span class="step-number">{{ index + 1 }}</span>
-          <span class="step-name">{{ step.step }}</span>
+          <span class="step-name">{{ getStepName(step.step) }}</span>
           <span class="step-time">{{ formatTime(step.timestamp) }}</span>
         </div>
         
         <div class="step-content" v-show="currentStep === index">
           <div class="step-description">{{ step.description }}</div>
           
-          <!-- 输入数据展示 -->
-          <div class="input-section">
-            <h4>输入数据</h4>
-            <div class="data-viewer">
-              <template v-if="step.step === '情感分析' || step.step === '概念分析'">
-                <div class="text-content">
-                  <span v-for="(word, i) in highlightText(step.input.text, getKeywords(step))" 
-                        :key="i"
-                        :class="{ highlighted: word.highlight }">
-                    {{ word.text }}
+          <!-- 记忆检索结果 -->
+          <template v-if="step.step === 'memory_retrieval'">
+            <div class="memory-results">
+              <div v-for="memory in step.output.relevant_memories" 
+                   :key="memory.memory_id" 
+                   class="memory-item">
+                <div class="memory-header">
+                  <span class="relevance-score">相关度: {{ formatPercentage(memory.relevance_score) }}</span>
+                </div>
+                <div class="memory-content">{{ memory.content }}</div>
+                <div class="memory-reason">{{ memory.reason }}</div>
+              </div>
+            </div>
+          </template>
+          
+          <!-- 快照匹配结果 -->
+          <template v-else-if="step.step === 'snapshot_matching'">
+            <div class="snapshot-matches">
+              <div v-for="snapshot in step.output.matched_snapshots" 
+                   :key="snapshot.id" 
+                   class="snapshot-item">
+                <div class="snapshot-header">
+                  <span class="category">{{ snapshot.category }}</span>
+                  <span class="match-score">
+                    匹配度: {{ formatPercentage(snapshot.relevance_score) }}
                   </span>
                 </div>
-              </template>
-              <template v-else>
-                <pre>{{ JSON.stringify(step.input, null, 2) }}</pre>
-              </template>
+                <div class="key-points">
+                  <div v-for="point in snapshot.key_points" 
+                       :key="point"
+                       class="key-point">
+                    {{ point }}
+                  </div>
+                </div>
+              </div>
             </div>
-          </div>
+          </template>
           
-          <!-- 输出数据展示 -->
-          <div class="output-section">
-            <h4>分析结果</h4>
-            <div class="data-viewer">
-              <template v-if="step.step === '情感分析'">
-                <div class="emotion-result">
-                  <div v-for="(value, emotion) in step.output" :key="emotion" class="emotion-item">
-                    <span class="emotion-label">{{ emotion }}</span>
-                    <div class="emotion-bar">
-                      <div class="emotion-value" :style="getBarStyle(value)"></div>
-                    </div>
-                    <span class="emotion-score">{{ formatPercentage(value) }}</span>
-                  </div>
-                </div>
-              </template>
-              <template v-else-if="step.step === '概念分析'">
-                <div class="concepts-result">
-                  <div v-for="concept in step.output.concepts" :key="concept.name" class="concept-item">
-                    <span class="concept-name">{{ concept.name }}</span>
-                    <span class="concept-type">{{ concept.type }}</span>
-                    <div class="concept-relevance">
-                      <div class="relevance-bar" :style="getBarStyle(concept.relevance)"></div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else-if="step.step === '基础快照匹配' || step.step === '详细快照匹配'">
-                <div class="snapshot-matches">
-                  <div v-for="snapshot in step.output.matched_snapshots" 
-                       :key="snapshot.snapshot_id" 
-                       class="snapshot-item">
-                    <div class="snapshot-header">
-                      <span class="snapshot-id">{{ snapshot.snapshot_id }}</span>
-                      <span class="match-score" v-if="snapshot.relevance_score">
-                        {{ formatPercentage(snapshot.relevance_score) }}
-                      </span>
-                    </div>
-                    <div class="snapshot-details">
-                      <template v-if="step.step === '基础快照匹配'">
-                        <div class="category">{{ snapshot.category }}</div>
-                        <div class="keywords">
-                          <span v-for="keyword in snapshot.keywords" 
-                                :key="keyword"
-                                class="keyword">{{ keyword }}</span>
-                        </div>
-                      </template>
-                      <template v-else>
-                        <div class="summary">{{ snapshot.summary }}</div>
-                        <div class="elements">
-                          <span v-for="element in snapshot.key_elements" 
-                                :key="element"
-                                class="element">{{ element }}</span>
-                        </div>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </template>
-              <template v-else-if="step.step === '记忆评估'">
-                <div class="memory-results">
-                  <div v-for="memory in step.output.relevant_memories" 
-                       :key="memory.memory.memory_id" 
-                       class="memory-item">
-                    <div class="memory-header">
-                      <span class="memory-id">{{ memory.memory.memory_id }}</span>
-                      <span class="relevance-score">{{ formatPercentage(memory.relevance_score) }}</span>
-                    </div>
-                    <div class="memory-content">{{ memory.memory.content }}</div>
-                    <div class="memory-reason">{{ memory.reason }}</div>
-                    <div class="memory-suggestion">{{ memory.usage_suggestion }}</div>
-                  </div>
-                </div>
-              </template>
-              <template v-else>
-                <pre>{{ JSON.stringify(step.output, null, 2) }}</pre>
-              </template>
+          <!-- 其他分析步骤 -->
+          <template v-else>
+            <div class="step-result">
+              <pre>{{ JSON.stringify(step.output, null, 2) }}</pre>
             </div>
-          </div>
+          </template>
         </div>
       </div>
     </div>
@@ -142,51 +89,13 @@ export default {
     formatPercentage(value) {
       return (value * 100).toFixed(1) + '%'
     },
-    getBarStyle(value) {
-      return { width: (value * 100) + '%' }
-    },
-    getKeywords(step) {
-      if (step.step === '情感分析') {
-        return Object.keys(step.output)
-      } else if (step.step === '概念分析') {
-        return step.output.concepts.map(c => c.name)
+    getStepName(step) {
+      const stepNames = {
+        'memory_retrieval': '记忆检索',
+        'snapshot_matching': '快照匹配',
+        'response_generation': '回复生成'
       }
-      return []
-    },
-    highlightText(text, keywords) {
-      if (!text || !keywords || keywords.length === 0) {
-        return [{ text, highlight: false }]
-      }
-      
-      const result = []
-      let lastIndex = 0
-      
-      // 创建正则表达式匹配所有关键词
-      const pattern = new RegExp(keywords.map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|'), 'gi')
-      
-      let match
-      while ((match = pattern.exec(text)) !== null) {
-        if (match.index > lastIndex) {
-          result.push({
-            text: text.substring(lastIndex, match.index),
-            highlight: false
-          })
-        }
-        result.push({
-          text: match[0],
-          highlight: true
-        })
-        lastIndex = pattern.lastIndex
-      }
-      
-      if (lastIndex < text.length) {
-        result.push({
-          text: text.substring(lastIndex),
-          highlight: false
-        })
-      }
-      
-      return result
+      return stepNames[step] || step
     }
   }
 }
@@ -199,19 +108,30 @@ export default {
   overflow-y: auto;
 }
 
+.analysis-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 .analysis-step {
-  margin-bottom: 20px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
+  background: white;
 }
 
 .step-header {
-  padding: 12px;
-  background-color: #f5f5f5;
+  padding: 12px 16px;
+  background-color: #f8f9fa;
   cursor: pointer;
   display: flex;
   align-items: center;
   border-radius: 8px 8px 0 0;
+  transition: background-color 0.2s;
+}
+
+.step-header:hover {
+  background-color: #f0f0f0;
 }
 
 .step-number {
@@ -224,16 +144,18 @@ export default {
   align-items: center;
   justify-content: center;
   margin-right: 12px;
+  font-size: 0.9em;
 }
 
 .step-name {
   font-weight: 500;
   flex-grow: 1;
+  color: #333;
 }
 
 .step-time {
   color: #666;
-  font-size: 0.9em;
+  font-size: 0.85em;
 }
 
 .step-content {
@@ -243,103 +165,85 @@ export default {
 .step-description {
   color: #666;
   margin-bottom: 16px;
+  font-size: 0.9em;
+  line-height: 1.5;
 }
 
-.data-viewer {
-  background-color: #f8f9fa;
-  padding: 12px;
-  border-radius: 4px;
-  margin-top: 8px;
-}
-
-.text-content {
-  line-height: 1.6;
-}
-
-.highlighted {
-  background-color: #fff176;
-  padding: 2px 0;
-}
-
-.emotion-result, .concepts-result {
+.memory-results, .snapshot-matches {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.emotion-item, .concept-item {
-  display: flex;
-  align-items: center;
   gap: 12px;
 }
 
-.emotion-bar, .concept-relevance {
-  flex-grow: 1;
-  height: 8px;
-  background-color: #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-}
-
-.emotion-value, .relevance-bar {
-  height: 100%;
-  background-color: #1976d2;
-  transition: width 0.3s ease;
-}
-
-.snapshot-matches, .memory-results {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.snapshot-item, .memory-item {
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
+.memory-item, .snapshot-item {
+  background: #f8f9fa;
+  border-radius: 6px;
   padding: 12px;
 }
 
-.snapshot-header, .memory-header {
+.memory-header, .snapshot-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 8px;
 }
 
-.match-score, .relevance-score {
+.relevance-score, .match-score {
+  font-size: 0.85em;
   color: #1976d2;
-  font-weight: 500;
-}
-
-.keywords, .elements {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.keyword, .element {
-  background-color: #e3f2fd;
+  background: rgba(25, 118, 210, 0.1);
   padding: 4px 8px;
   border-radius: 4px;
-  font-size: 0.9em;
 }
 
 .memory-content {
-  margin: 8px 0;
-  line-height: 1.6;
+  color: #333;
+  margin-bottom: 8px;
+  line-height: 1.5;
 }
 
-.memory-reason, .memory-suggestion {
+.memory-reason {
   color: #666;
   font-size: 0.9em;
-  margin-top: 4px;
+  font-style: italic;
 }
 
-.active {
-  border-color: #1976d2;
+.category {
+  font-weight: 500;
+  color: #1976d2;
 }
 
-.active .step-header {
-  background-color: #e3f2fd;
+.key-points {
+  margin-top: 8px;
+}
+
+.key-point {
+  color: #333;
+  margin-bottom: 4px;
+  line-height: 1.4;
+  position: relative;
+  padding-left: 16px;
+}
+
+.key-point::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #1976d2;
+}
+
+.step-result {
+  background: #f8f9fa;
+  border-radius: 6px;
+  padding: 12px;
+}
+
+.step-result pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9em;
+  line-height: 1.5;
+  color: #333;
 }
 </style> 

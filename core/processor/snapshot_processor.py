@@ -167,5 +167,64 @@ class SnapshotProcessor:
             return relevant_memories
             
         except Exception as e:
-            snapshot_processor_logger.error(f"获取相关记忆失败：{str(e)}", exc_info=True)
-            return [] 
+            snapshot_processor_logger.error(f"获取相关记忆失败：{str(e)}")
+            return []
+
+    async def get_all_memories(self) -> List[Dict[str, Any]]:
+        """获取所有记忆"""
+        try:
+            memories = []
+            for memory in self.snapshot_manager.memories.values():
+                memories.append({
+                    'id': memory.id,
+                    'content': memory.content,
+                    'timestamp': memory.timestamp.isoformat(),
+                    'context': memory.context
+                })
+            return memories
+        except Exception as e:
+            snapshot_processor_logger.error(f"获取所有记忆失败：{str(e)}")
+            return []
+
+    async def get_all_snapshots(self) -> List[Dict[str, Any]]:
+        """获取所有快照"""
+        try:
+            snapshots = []
+            for snapshot in self.snapshot_manager.snapshots.values():
+                snapshots.append({
+                    'id': snapshot.id,
+                    'key_points': snapshot.key_points,
+                    'category': snapshot.category,
+                    'importance': snapshot.importance
+                })
+            return snapshots
+        except Exception as e:
+            snapshot_processor_logger.error(f"获取所有快照失败：{str(e)}")
+            return []
+
+    async def update_snapshots(self) -> None:
+        """更新所有快照"""
+        try:
+            # 获取所有记忆
+            memories = list(self.snapshot_manager.memories.values())
+            if not memories:
+                return
+
+            # 生成新的快照
+            snapshot_id = f"detail_{uuid.uuid4().hex}"
+            detail_snapshot = await self.generator.generate_detail_snapshot(
+                memories,
+                snapshot_id
+            )
+            
+            # 保存新快照
+            if detail_snapshot:
+                await self.snapshot_manager.create_snapshot(
+                    key_points=detail_snapshot.key_points,
+                    memory_ids=[m.id for m in memories],
+                    category=detail_snapshot.category,
+                    importance=detail_snapshot.importance
+                )
+        except Exception as e:
+            snapshot_processor_logger.error(f"更新快照失败：{str(e)}")
+            raise 
