@@ -44,7 +44,20 @@ class MemorySystemFactory:
             storage = MemoryStorage(storage_dir=config.storage.storage_dir)
             memory_factory_logger.info("存储初始化完成")
             
+            # 加载 LLM 配置
+            llm_config_path = str(Path(__file__).parent.parent.parent / 'config' / 'llm_config.json')
+            memory_factory_logger.info(f"尝试加载 LLM 配置文件: {llm_config_path}")
+            
+            if os.path.exists(llm_config_path):
+                with open(llm_config_path, 'r') as f:
+                    loaded_llm_config = json.load(f)
+                memory_factory_logger.info(f"成功加载 LLM 配置: {loaded_llm_config}")
+                llm_config = loaded_llm_config
+            else:
+                memory_factory_logger.warning(f"LLM 配置文件不存在: {llm_config_path}")
+            
             # 创建LLM服务
+            memory_factory_logger.info(f"创建 LLM 服务，使用配置: {llm_config or {}}")
             llm_service = LLMService(llm_config or {})
             memory_factory_logger.info("LLM服务创建成功")
             

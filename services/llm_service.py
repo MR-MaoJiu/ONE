@@ -29,21 +29,46 @@ class LLMConfig(BaseModel):
     def from_dict(cls, data: Dict[str, Any]) -> 'LLMConfig':
         """从字典创建配置，处理环境变量引用"""
         processed_data = {}
+        llm_logger.info("开始处理配置数据: %s", data)
+        
+        # 确保环境变量已加载
+        llm_logger.info("当前环境变量: OPENAI_API_KEY=%s, OPENAI_API_BASE=%s", 
+                       '***' if os.getenv('OPENAI_API_KEY') else None,
+                       os.getenv('OPENAI_API_BASE'))
+        
         for key, value in data.items():
             if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
                 env_var = value[2:-1]
-                processed_data[key] = os.getenv(env_var)
+                env_value = os.getenv(env_var)
+                llm_logger.info("处理环境变量 %s: %s -> %s", key, env_var, 
+                              '***' if 'key' in key.lower() else env_value)
+                processed_data[key] = env_value
             else:
                 processed_data[key] = value
+                llm_logger.info("使用原始值 %s: %s", key, 
+                              '***' if 'key' in key.lower() else value)
+        
+        llm_logger.info("配置处理完成: %s", 
+                       {k: '***' if 'key' in k.lower() else v for k, v in processed_data.items()})
         return cls(**processed_data)
 
 class LLMService:
     """LLM服务基类"""
     def __init__(self, config: Dict[str, Any]):
         # 处理配置
+        llm_logger.info("开始初始化LLM服务，原始配置：%s", config)
         self.config = LLMConfig.from_dict(config)
+        llm_logger.info("LLM配置处理完成：%s", {
+            'provider': self.config.provider,
+            'model': self.config.model,
+            'temperature': self.config.temperature,
+            'max_tokens': self.config.max_tokens,
+            'api_key': '***' if self.config.api_key else None,
+            'base_url': self.config.base_url
+        })
         
         # 创建OpenAI客户端
+        llm_logger.info("正在创建OpenAI客户端，base_url: %s", self.config.base_url)
         self.client = OpenAI(
             api_key=self.config.api_key,
             base_url=self.config.base_url,
@@ -52,6 +77,7 @@ class LLMService:
                 follow_redirects=True,
             ) if self.config.base_url else None
         )
+        llm_logger.info("OpenAI客户端创建完成")
         
     async def chat(self, query: str, context: Dict[str, Any] = None) -> str:
         """
