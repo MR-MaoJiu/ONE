@@ -10,7 +10,8 @@ export default createStore({
     memories: [], // 记忆列表
     snapshots: [], // 快照列表
     wsConnection: null, // WebSocket连接
-    isConnected: false // WebSocket连接状态
+    isConnected: false, // WebSocket连接状态
+    currentAnalysis: null // 当前分析数据
   },
   
   mutations: {
@@ -31,6 +32,9 @@ export default createStore({
     },
     SET_CONNECTED(state, status) {
       state.isConnected = status
+    },
+    SET_CURRENT_ANALYSIS(state, analysis) {
+      state.currentAnalysis = analysis
     }
   },
   
@@ -60,6 +64,11 @@ export default createStore({
           })
         }
         
+        // 更新分析数据
+        if (response.data.analysis) {
+          commit('SET_CURRENT_ANALYSIS', response.data.analysis)
+        }
+        
         return response.data
       } catch (error) {
         console.error('发送消息失败:', error)
@@ -84,6 +93,9 @@ export default createStore({
             content: data.response,
             timestamp: new Date().toISOString()
           })
+        }
+        if (data.analysis) {
+          commit('SET_CURRENT_ANALYSIS', data.analysis)
         }
       }
       
@@ -176,6 +188,13 @@ export default createStore({
     // 清空聊天记录
     clearMessages({ commit }) {
       commit('SET_MESSAGES', [])
+      commit('SET_CURRENT_ANALYSIS', null)
+    },
+    
+    // 开始新对话
+    startNewConversation({ commit }) {
+      commit('SET_MESSAGES', [])
+      commit('SET_CURRENT_ANALYSIS', null)
     }
   }
 }) 

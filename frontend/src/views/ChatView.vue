@@ -55,8 +55,8 @@ const messages = computed(() => store.state.messages)
 const inputMessage = ref('')
 const messagesContainer = ref(null)
 const messageInput = ref(null)
-const currentAnalysis = ref(null)
 const isAnalyzing = ref(false)
+const currentAnalysis = computed(() => store.state.currentAnalysis)
 
 const formatTime = (timestamp) => {
   const date = new Date(timestamp)
@@ -83,7 +83,6 @@ const sendMessage = async () => {
 
   // 开始分析
   isAnalyzing.value = true
-  currentAnalysis.value = null
 
   try {
     const messageData = {
@@ -99,16 +98,11 @@ const sendMessage = async () => {
     }
 
     // 发送消息
-    const response = await store.dispatch('sendMessage', messageData)
+    await store.dispatch('sendMessage', messageData)
     
     // 清空输入
     inputMessage.value = ''
     messageInput.value.style.height = 'auto'
-    
-    // 更新分析结果
-    if (response.analysis) {
-      currentAnalysis.value = response.analysis
-    }
 
     // 滚动到底部
     await scrollToBottom()
