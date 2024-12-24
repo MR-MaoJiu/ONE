@@ -2,7 +2,7 @@
   <div class="thinking-container">
     <div class="thinking-header">
       <div class="header-content">
-        <div class="pulse-dot"></div>
+        <div class="pulse-dot" :class="{ 'active': isThinking }"></div>
         <h3>AI 思考过程</h3>
       </div>
     </div>
@@ -28,7 +28,7 @@
           </div>
         </div>
       </template>
-      <div v-else class="no-thinking">
+      <div v-else-if="isThinking" class="no-thinking">
         <div class="thinking-animation">
           <div class="circle"></div>
           <div class="circle"></div>
@@ -36,13 +36,18 @@
         </div>
         <span>等待 AI 思考...</span>
       </div>
+      <div v-else class="no-thinking">
+        <span class="idle-text">发送消息后，这里将显示 AI 的思考过程</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
+import { useStore } from 'vuex'
 
+const store = useStore()
 const props = defineProps({
   thinkingSteps: {
     type: Array,
@@ -51,6 +56,7 @@ const props = defineProps({
 })
 
 const displaySteps = ref([])
+const isThinking = ref(false)
 const stepDelay = 500 // 每个步骤显示的延迟时间（毫秒）
 
 // 监听思考步骤的变化
@@ -60,14 +66,42 @@ watch(() => props.thinkingSteps, (newSteps) => {
     return
   }
   
+  isThinking.value = true
   // 逐步显示每个步骤
   displaySteps.value = []
   newSteps.forEach((step, index) => {
     setTimeout(() => {
       displaySteps.value.push(step)
+      // 如果是最后一个步骤，延迟结束思考状态
+      if (index === newSteps.length - 1) {
+        setTimeout(() => {
+          isThinking.value = false
+        }, 2000) // 延长到2秒，让最后的步骤显示更清晰
+      }
     }, index * stepDelay)
   })
 }, { deep: true })
+
+// 监听消息发送事件
+watch(() => store.state.messages, (newMessages, oldMessages) => {
+  if (newMessages.length > oldMessages.length) {
+    const lastMessage = newMessages[newMessages.length - 1]
+    if (lastMessage.type === 'user') {
+      // 用户发送消息时，设置思考状态为true
+      isThinking.value = true
+      displaySteps.value = [] // 清空之前的步骤
+    }
+  }
+}, { deep: true })
+
+// 监听WebSocket连接状态
+watch(() => store.state.isConnected, (newValue) => {
+  if (!newValue) {
+    // WebSocket断开时，重置状态
+    isThinking.value = false
+    displaySteps.value = []
+  }
+}, { immediate: true })
 
 // 获取步骤类型的图标
 const getTypeIcon = (type) => {
@@ -130,8 +164,13 @@ const formatResult = (result) => {
 .pulse-dot {
   width: 12px;
   height: 12px;
-  background: #00ff9d;
+  background: #666;
   border-radius: 50%;
+  transition: all 0.3s ease;
+}
+
+.pulse-dot.active {
+  background: #00ff9d;
   animation: pulse 2s infinite;
 }
 
@@ -235,6 +274,11 @@ const formatResult = (result) => {
   justify-content: center;
   gap: 20px;
   color: #666;
+}
+
+.idle-text {
+  color: #666;
+  font-style: italic;
 }
 
 .thinking-animation {

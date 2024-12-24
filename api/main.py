@@ -184,32 +184,41 @@ async def websocket_endpoint(websocket: WebSocket):
     - Error handling / 错误处理
     - Connection cleanup / 连接清理
     """
+    await websocket.accept()
+    
     try:
-        await websocket.accept()
-        
-        if not chat_manager:
-            await websocket.send_json({"error": "Chat manager not initialized / 聊天管理器未初始化"})
-            return
-            
         while True:
-            # Receive message / 接收消息
             data = await websocket.receive_json()
-            message = Message(**data)
+            content = data.get("content", "")
             
-            # Process message / 处理消息
-            result = await chat_manager.chat(message.content)
-            
-            # Send response / 发送响应
+            # 清空之前的思考步骤
             await websocket.send_json({
-                "response": result['response'],
-                "thinking_steps": result['thinking_steps']
+                "type": "thinking_clear"
+            })
+            
+            # 处理用户消息并获取回复
+            if not chat_manager:
+                await websocket.send_json({"error": "Chat manager not initialized"})
+                return
+                
+            result = await chat_manager.chat(content)
+            
+            # 发送思考步骤
+            if 'thinking_steps' in result:
+                for step in result['thinking_steps']:
+                    await websocket.send_json({
+                        "type": "thinking_step",
+                        "step": step
+                    })
+            
+            # 发送最终回复
+            await websocket.send_json({
+                "type": "message",
+                "response": result['response']
             })
             
     except WebSocketDisconnect:
-        api_logger.info("WebSocket connection closed / WebSocket连接已关闭")
-    except Exception as e:
-        api_logger.error(f"WebSocket processing failed / WebSocket处理失败: {str(e)}", exc_info=True)
-        await websocket.send_json({"error": str(e)})
+        print("WebSocket连接已关闭")
 
 @app.get("/memories", response_model=List[Memory])
 async def get_memories():

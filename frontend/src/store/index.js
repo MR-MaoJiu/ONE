@@ -101,15 +101,29 @@ export default createStore({
       
       ws.onmessage = (event) => {
         const data = JSON.parse(event.data)
-        if (data.response) {
-          commit('ADD_MESSAGE', {
-            type: 'system',
-            content: data.response,
-            timestamp: new Date().toISOString()
-          })
-        }
-        if (data.analysis) {
-          commit('SET_CURRENT_ANALYSIS', data.analysis)
+        
+        switch (data.type) {
+          case 'thinking_clear':
+            // 清空思考步骤
+            commit('CLEAR_THINKING_STEPS')
+            break
+            
+          case 'thinking_step':
+            // 添加新的思考步骤
+            commit('ADD_THINKING_STEP', data.step)
+            break
+            
+          case 'message':
+            // 添加AI回复消息
+            commit('ADD_MESSAGE', {
+              type: 'system',
+              content: data.response,
+              timestamp: new Date().toISOString()
+            })
+            break
+            
+          default:
+            console.warn('未知的消息类型:', data.type)
         }
       }
       
@@ -135,6 +149,9 @@ export default createStore({
       }
       
       try {
+        // 清空之前的思考步骤
+        commit('CLEAR_THINKING_STEPS')
+        
         // 添加用户消息到列表
         commit('ADD_MESSAGE', {
           type: 'user',
