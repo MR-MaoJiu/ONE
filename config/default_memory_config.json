@@ -1,0 +1,17 @@
+{
+    "storage": {
+        "storage_dir": "data/memories",
+        "index_file": "index.json"
+    },
+    "snapshot": {
+        "min_importance": 0.5,
+        "max_key_points": 5,
+        "max_snapshots_per_category": 10,
+        "cleanup_days": 30
+    },
+    "chat": {
+        "max_history_length": 10,
+        "max_relevant_memories": 5,
+        "memory_recency_weight": 0.3
+    }
+} 
