@@ -28,13 +28,15 @@
           </div>
         </div>
       </template>
-      <div v-else-if="isThinking" class="no-thinking">
-        <div class="thinking-animation">
-          <div class="circle"></div>
-          <div class="circle"></div>
-          <div class="circle"></div>
+      <div v-else-if="isThinking" class="thinking-animation-container">
+        <div class="thinking-status">
+          <div class="thinking-animation">
+            <div class="circle"></div>
+            <div class="circle"></div>
+            <div class="circle"></div>
+          </div>
+          <span class="thinking-text">AI 正在思考中...</span>
         </div>
-        <span>等待 AI 思考...</span>
       </div>
       <div v-else class="no-thinking">
         <span class="idle-text">发送消息后，这里将显示 AI 的思考过程</span>
@@ -76,7 +78,6 @@ watch(() => props.thinkingSteps, (newSteps) => {
     return
   }
   
-  isThinking.value = true
   // 逐步显示每个步骤
   displaySteps.value = []
   newSteps.forEach((step, index) => {
@@ -97,9 +98,9 @@ watch(() => store.state.messages, (newMessages, oldMessages) => {
   if (newMessages.length > oldMessages.length) {
     const lastMessage = newMessages[newMessages.length - 1]
     if (lastMessage.type === 'user') {
-      // 用户发送消息时，设置思考状态为true
+      // 用户发送消息时，立即设置思考状态为true并清空步骤
       isThinking.value = true
-      displaySteps.value = [] // 清空之前的步骤
+      displaySteps.value = []
     }
   }
 }, { deep: true })
@@ -292,6 +293,31 @@ const formatResult = (result) => {
   font-style: italic;
 }
 
+.thinking-animation-container {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thinking-status {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px solid rgba(0, 255, 157, 0.2);
+}
+
+.thinking-text {
+  color: #00ff9d;
+  font-size: 1.1em;
+  font-weight: 500;
+  text-shadow: 0 0 10px rgba(0, 255, 157, 0.3);
+}
+
 .thinking-animation {
   display: flex;
   gap: 8px;
@@ -303,6 +329,7 @@ const formatResult = (result) => {
   background: #00ff9d;
   border-radius: 50%;
   animation: bounce 1s infinite;
+  box-shadow: 0 0 10px rgba(0, 255, 157, 0.5);
 }
 
 .circle:nth-child(2) {
