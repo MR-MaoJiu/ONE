@@ -10,6 +10,7 @@ from utils.logger import get_logger
 from services.llm_service import LLMService
 from ..memory.snapshot import SnapshotManager, BaseMemory
 from ..memory.snapshot_generator import SnapshotGenerator
+from prompts.memory_retrieval_prompts import get_memory_retrieval_prompt
 
 # 创建logger
 snapshot_processor_logger = get_logger('snapshot_processor')
@@ -107,64 +108,63 @@ class SnapshotProcessor:
                     'timestamp': memory.timestamp.isoformat()
                 })
             
-            # 构建提示词
-            prompt = f"""
-            请根据以下记忆和当前查询，评估它们的相关度。
-            
-            当前查询：{query}
-            
-            记忆列表：
-            {json.dumps(memory_data, ensure_ascii=False, indent=2)}
-            
-            请评估每条记忆与当前查询的相关程度，考虑以下因素：
-            1. 内容相关性：记忆内容是否与查询主题相关
-            2. 时间相关性：记忆的时间是否与查询相关
-            3. 上下文匹配：记忆的上下文是否与当前查询场景匹配
-            
-            请返回以下格式的JSON：
-            {{
-                "relevant_memories": [
-                    {{
-                        "memory_id": "记忆ID",
-                        "relevance_score": 0.8,
-                        "reason": "相关原因说明"
-                    }}
-                ]
-            }}
-            
-            注意：
-            1. relevance_score 必须是 0-1 之间的浮点数
-            2. 只返回相关度大于 0.5 的记忆
-            3. 按相关度从高到低排序
-            """
-            
+            # 获取提示词
+            prompt = get_memory_retrieval_prompt(
+                query=query,
+                memory_data=json.dumps(memory_data, ensure_ascii=False, indent=2)
+            )
+
             # 调用LLM评估相关度
+            snapshot_processor_logger.info("调用 LLM 评估相关度")
             result = await self.generator.llm_service.generate_json(prompt)
+            snapshot_processor_logger.info("LLM 返回结果：%s", json.dumps(result, ensure_ascii=False))
             
-            if not result or 'relevant_memories' not in result:
+            # 检查返回结果格式
+            if not isinstance(result, dict) or 'relevant_memories' not in result:
+                snapshot_processor_logger.error("LLM 返回结果格式错误：缺少 relevant_memories 字段")
                 return []
-            
-            # 获取相关记忆
-            relevant_memories = []
+                
+            if not isinstance(result['relevant_memories'], list):
+                snapshot_processor_logger.error("LLM 返回结果格式错误：relevant_memories 不是数组")
+                return []
+                
+            # 验证每个记忆的格式
+            valid_memories = []
             for memory_result in result['relevant_memories']:
-                memory_id = memory_result.get('memory_id')
-                if not memory_id:
-                    continue
-                    
-                memory = self.snapshot_manager.get_memory(memory_id)
-                if not memory:
-                    continue
-                    
                 try:
-                    score = float(memory_result.get('relevance_score', 0))
-                    if score >= 0.5:  # 只保留相关度大于 0.5 的记忆
-                        relevant_memories.append((memory, score))
-                except (TypeError, ValueError):
+                    # 检查必要字段
+                    if not all(key in memory_result for key in ['memory_id', 'relevance_score', 'reason']):
+                        snapshot_processor_logger.warning("记忆结果缺少必要字段：%s", memory_result)
+                        continue
+                        
+                    # 验证 memory_id
+                    memory_id = memory_result['memory_id']
+                    memory = self.snapshot_manager.get_memory(memory_id)
+                    if not memory:
+                        snapshot_processor_logger.warning("找不到记忆：%s", memory_id)
+                        continue
+                        
+                    # 验证 relevance_score
+                    score = float(memory_result['relevance_score'])
+                    if not (0 <= score <= 1):
+                        snapshot_processor_logger.warning("记忆分数超出范围：%s, %f", memory_id, score)
+                        continue
+                        
+                    if score >= 0.5:
+                        valid_memories.append((memory, score))
+                        snapshot_processor_logger.info("添加相关记忆：%s，分数：%.2f，原因：%s", 
+                                                     memory_id, score, memory_result['reason'])
+                    else:
+                        snapshot_processor_logger.info("记忆分数低于阈值：%s，分数：%.2f", memory_id, score)
+                        
+                except (TypeError, ValueError, KeyError) as e:
+                    snapshot_processor_logger.error("处理记忆结果时出错：%s，错误：%s", memory_result, str(e))
                     continue
             
             # 按相关度排序
-            relevant_memories.sort(key=lambda x: x[1], reverse=True)
-            return relevant_memories
+            valid_memories.sort(key=lambda x: x[1], reverse=True)
+            snapshot_processor_logger.info("最终返回 %d 条相关记忆", len(valid_memories))
+            return valid_memories
             
         except Exception as e:
             snapshot_processor_logger.error(f"获取相关记忆失败：{str(e)}")

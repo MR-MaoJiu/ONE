@@ -37,10 +37,11 @@ class ChatManager:
     async def _get_relevant_memories(self, context: Dict[str, Any]) -> List[Tuple[BaseMemory, float]]:
         """获取相关记忆"""
         try:
-            chat_logger.info("开始检索相关记忆")
+            chat_logger.info("开始检索相关记忆，当前查询：%s", context.get('current_query'))
             
             # 使用快照处理器获取相关记忆
             memories = await self.snapshot_processor.get_relevant_memories(context)
+            chat_logger.info("快照处理器返回记忆数量：%d", len(memories))
             
             # 应用时间衰减
             now = datetime.now().timestamp()
@@ -50,13 +51,15 @@ class ChatManager:
                 time_weight = 1.0 / (1.0 + self.config.memory_recency_weight * time_diff / (24 * 3600))  # 24小时作为基准
                 weighted_score = score * time_weight
                 weighted_memories.append((memory, weighted_score))
+                chat_logger.info("记忆内容：%s，原始分数：%.2f，时间权重：%.2f，最终分数：%.2f", 
+                               memory.content, score, time_weight, weighted_score)
             
             # 按加权分数排序并限制数量
             weighted_memories.sort(key=lambda x: x[1], reverse=True)
             relevant_memories = weighted_memories[:self.config.max_relevant_memories]
             
             chat_logger.info(
-                "找到 %d 条相关记忆，分数范围：%.2f - %.2f",
+                "最终选择 %d 条相关记忆，分数范围：%.2f - %.2f",
                 len(relevant_memories),
                 relevant_memories[-1][1] if relevant_memories else 0,
                 relevant_memories[0][1] if relevant_memories else 0
@@ -110,9 +113,11 @@ class ChatManager:
             
             # 准备上下文
             context = self._prepare_context(query)
+            chat_logger.info("准备的上下文：%s", context)
             
             # 获取相关记忆
             relevant_memories = await self._get_relevant_memories(context)
+            chat_logger.info("获取到 %d 条相关记忆", len(relevant_memories))
             
             # 将相关记忆添加到上下文
             if relevant_memories:
@@ -124,8 +129,12 @@ class ChatManager:
                     }
                     for memory, score in relevant_memories
                 ]
+                chat_logger.info("添加到上下文的记忆：%s", json.dumps(context['relevant_memories'], ensure_ascii=False))
+            else:
+                chat_logger.info("没有找到相关记忆")
             
             # 生成回复
+            chat_logger.info("开始生成回复，发送给 LLM 的上下文：%s", json.dumps(context, ensure_ascii=False))
             response = await self.llm_service.chat(query, context)
             
             # 添加到历史记录
