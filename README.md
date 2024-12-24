@@ -1,4 +1,4 @@
-# AI助手系统
+# AI永久记忆系统
 
 这是一个基于大语言模型的AI助手系统，具有记忆管理和对话能力。
 
@@ -77,13 +77,16 @@ GET /memory_stats  # 获取记忆统计
 pip install -r requirements.txt
 ```
 
-2. 配置
-- 复制`config/default_memory_config.json`为`config/memory_config.json`
-- 根据需要修改配置参数
 
-3. 运行
+2. 运行
 ```bash
-python api/main.py
+python run.py
+
+cd .\frontend\
+
+npm install
+
+npm run dev
 ```
 
 ## 注意事项
