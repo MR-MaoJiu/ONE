@@ -3,7 +3,7 @@
     <div class="header">
       <h2>记忆管理</h2>
       <div class="button-group">
-        <button @click="clearAllMemories" class="danger">清空记忆</button>
+        <button @click="clearAllMemories" class="btn-danger">清空记忆</button>
       </div>
     </div>
     
@@ -102,6 +102,9 @@ function formatTime(timestamp) {
   padding: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  height: calc(100vh - 50px);
+  display: flex;
+  flex-direction: column;
 }
 
 .header {
@@ -109,6 +112,12 @@ function formatTime(timestamp) {
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
+}
+
+.header h2 {
+  color: var(--primary-color);
+  font-size: 1.5rem;
+  font-weight: 500;
 }
 
 .button-group {
@@ -120,24 +129,32 @@ button {
   padding: 8px 16px;
   border: none;
   border-radius: 4px;
-  background: #007bff;
-  color: white;
+  background: var(--primary-gradient);
+  color: var(--bg-dark);
   cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 500;
 }
 
-button.danger {
-  background: #dc3545;
+button.btn-danger {
+  background: linear-gradient(135deg, #ff4d4d 0%, #f02929 100%);
+  color: white;
 }
 
 button:hover {
-  opacity: 0.9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 255, 157, 0.3);
+}
+
+button.btn-danger:hover {
+  box-shadow: 0 4px 12px rgba(255, 77, 77, 0.3);
 }
 
 .tabs {
   display: flex;
   gap: 2px;
   margin-bottom: 20px;
-  background: #f0f0f0;
+  background: var(--bg-dark);
   padding: 4px;
   border-radius: 8px;
 }
@@ -148,21 +165,26 @@ button:hover {
   border-radius: 6px;
   transition: all 0.3s ease;
   font-weight: 500;
-  color: #666;
+  color: var(--text-dim);
+  border: 1px solid transparent;
 }
 
 .tab:hover {
-  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-light);
+  background: rgba(0, 255, 157, 0.1);
+  border-color: rgba(0, 255, 157, 0.2);
 }
 
 .tab.active {
-  background: white;
-  color: #007bff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  background: var(--primary-gradient);
+  color: var(--bg-dark);
+  box-shadow: 0 2px 8px rgba(0, 255, 157, 0.2);
 }
 
 .section {
-  margin-bottom: 30px;
+  flex: 1;
+  overflow-y: auto;
+  margin-bottom: 20px;
 }
 
 .memory-list {
@@ -180,17 +202,26 @@ button:hover {
 .memory-item {
   padding: 12px;
   border-radius: 8px;
-  background: white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  background: var(--bg-dark);
+  box-shadow: 0 2px 8px rgba(0, 150, 255, 0.1);
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 20px;
+  border: 1px solid rgba(0, 255, 157, 0.1);
+  transition: all 0.3s ease;
+}
+
+.memory-item:hover {
+  border-color: rgba(0, 255, 157, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 150, 255, 0.2);
 }
 
 .memory-content {
   flex: 1;
   line-height: 1.5;
+  color: var(--text-light);
 }
 
 .text-ellipsis {
@@ -201,15 +232,23 @@ button:hover {
 
 .memory-meta {
   font-size: 0.9em;
-  color: #666;
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
 .snapshot-item {
   padding: 15px;
   border-radius: 8px;
-  background: white;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background: var(--bg-dark);
+  box-shadow: 0 2px 8px rgba(0, 150, 255, 0.1);
+  border: 1px solid rgba(0, 255, 157, 0.1);
+  transition: all 0.3s ease;
+}
+
+.snapshot-item:hover {
+  border-color: rgba(0, 255, 157, 0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 150, 255, 0.2);
 }
 
 .snapshot-header {
@@ -221,26 +260,67 @@ button:hover {
 
 .category {
   font-weight: bold;
-  color: #007bff;
+  color: var(--primary-color);
 }
 
 .importance {
   font-size: 0.9em;
-  color: #666;
+  color: var(--text-dim);
 }
 
 .key-points {
   h4 {
     margin: 0 0 10px 0;
+    color: var(--text-light);
   }
   
   ul {
     margin: 0;
     padding-left: 20px;
+    color: var(--text-light);
   }
   
   li {
     margin-bottom: 5px;
+    color: var(--text-dim);
+  }
+}
+
+/* 自定义滚动条 */
+.section::-webkit-scrollbar {
+  width: 4px;
+}
+
+.section::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.section::-webkit-scrollbar-thumb {
+  background: var(--primary-gradient);
+  border-radius: 2px;
+}
+
+@media (max-width: 768px) {
+  .memory-container {
+    padding: 10px;
+  }
+
+  .tabs {
+    padding: 3px;
+  }
+
+  .tab {
+    padding: 8px 12px;
+    font-size: 0.9em;
+  }
+
+  .snapshot-list {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-item, .snapshot-item {
+    padding: 10px;
   }
 }
 </style> 

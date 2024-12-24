@@ -21,8 +21,8 @@
           ></textarea>
           <div class="button-group">
             <button @click="sendMessage" :disabled="!inputMessage.trim()">发送</button>
-            <button @click="clearChat">清空对话</button>
-            <button @click="toggleConnection">
+            <button @click="clearChat" class="btn-secondary">清空对话</button>
+            <button @click="toggleConnection" class="btn-secondary">
               {{ isConnected ? '断开WebSocket' : '连接WebSocket' }}
             </button>
           </div>
@@ -122,114 +122,191 @@ function formatTime(timestamp) {
 
 <style scoped>
 .chat-container {
-  height: 100vh;
-  padding: 20px;
+  height: calc(100vh - 60px); /* 减去导航栏的高度 */
+  padding: 10px;
   box-sizing: border-box;
-  background: #f5f5f5;
+  background: #1a1a1a;
 }
 
 .split-view {
   display: flex;
-  gap: 20px;
+  gap: 10px;
   height: 100%;
+  max-height: 100%;
 }
 
 .chat-section {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background: white;
+  background: #2a2a2a;
   border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
   overflow: hidden;
+  max-height: 100%;
 }
 
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: 10px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 8px;
 }
 
 .message {
-  max-width: 80%;
-  padding: 12px;
+  max-width: 85%;
+  padding: 8px 12px;
   border-radius: 8px;
   position: relative;
 }
 
 .user-message {
   align-self: flex-end;
-  background: #1976d2;
-  color: white;
+  background: linear-gradient(135deg, #00ff9d 0%, #00a8ff 100%);
+  color: #1a1a1a;
 }
 
 .system-message {
   align-self: flex-start;
-  background: #f5f5f5;
-  color: #333;
+  background: #1a1a1a;
+  color: #e0e0e0;
+  border: 1px solid rgba(0, 255, 157, 0.2);
 }
 
 .message-content {
   word-break: break-word;
   white-space: pre-wrap;
+  font-size: 0.95em;
+  line-height: 1.4;
 }
 
 .message-time {
-  font-size: 0.8em;
-  color: #888;
-  margin-top: 4px;
+  font-size: 0.75em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 2px;
   text-align: right;
 }
 
 .input-container {
-  padding: 20px;
-  border-top: 1px solid #eee;
+  padding: 10px;
+  border-top: 1px solid #333;
+  background: #1a1a1a;
 }
 
 textarea {
   width: 100%;
-  padding: 12px;
-  border: 1px solid #ddd;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 255, 157, 0.2);
   border-radius: 8px;
   resize: none;
-  font-size: 1em;
-  margin-bottom: 12px;
+  font-size: 0.95em;
+  margin-bottom: 8px;
+  background: #2a2a2a;
+  color: #e0e0e0;
+  transition: all 0.3s ease;
+  max-height: 100px;
+  min-height: 40px;
+}
+
+textarea:focus {
+  outline: none;
+  border-color: #00ff9d;
+  box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
+}
+
+textarea::placeholder {
+  color: #666;
 }
 
 .button-group {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
 button {
-  padding: 8px 16px;
+  padding: 6px 12px;
   border: none;
   border-radius: 4px;
-  background: #1976d2;
-  color: white;
+  background: linear-gradient(135deg, #00ff9d 0%, #00a8ff 100%);
+  color: #1a1a1a;
   cursor: pointer;
-  transition: background-color 0.3s;
+  transition: all 0.3s ease;
+  font-weight: 500;
+  font-size: 0.9em;
+}
+
+button.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(0, 255, 157, 0.2);
+  color: #00ff9d;
 }
 
 button:hover:not(:disabled) {
-  background: #1565c0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 255, 157, 0.3);
+}
+
+button.btn-secondary:hover:not(:disabled) {
+  background: rgba(0, 255, 157, 0.1);
 }
 
 button:disabled {
-  background: #ccc;
+  background: #333;
+  color: #666;
   cursor: not-allowed;
 }
 
+/* 自定义滚动条 */
+.messages-container::-webkit-scrollbar {
+  width: 4px;
+}
+
+.messages-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+}
+
+.messages-container::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #00ff9d 0%, #00a8ff 100%);
+  border-radius: 2px;
+}
+
 @media (max-width: 768px) {
+  .chat-container {
+    padding: 0;
+    height: calc(100vh - 50px); /* 移动端导航栏更小 */
+  }
+
   .split-view {
     flex-direction: column;
   }
   
-  .chat-section, .thinking-section {
-    height: 50vh;
+  .chat-section {
+    border-radius: 0;
+    height: 60vh;
+  }
+  
+  .thinking-section {
+    height: 40vh;
+  }
+
+  .message {
+    max-width: 90%;
+  }
+
+  .input-container {
+    padding: 8px;
+  }
+
+  textarea {
+    max-height: 80px;
+  }
+
+  button {
+    padding: 6px 10px;
+    font-size: 0.85em;
   }
 }
 </style> 
