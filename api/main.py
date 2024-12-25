@@ -176,7 +176,7 @@ async def chat(message: Message):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time chat / 用于实时聊天的WebSocket端点
+    WebSocket endpoint for chat / 聊天的WebSocket端点
     
     Handles:
     - Connection initialization / 连接初始化
@@ -184,41 +184,65 @@ async def websocket_endpoint(websocket: WebSocket):
     - Error handling / 错误处理
     - Connection cleanup / 连接清理
     """
-    await websocket.accept()
-    
     try:
+        await websocket.accept()
+        print("WebSocket连接已建立")
+        
         while True:
-            data = await websocket.receive_json()
-            content = data.get("content", "")
-            
-            # 清空之前的思考步骤
-            await websocket.send_json({
-                "type": "thinking_clear"
-            })
-            
-            # 处理用户消息并获取回复
-            if not chat_manager:
-                await websocket.send_json({"error": "Chat manager not initialized"})
-                return
+            try:
+                # 等待接收消息
+                data = await websocket.receive_json()
+                content = data.get("content", "")
                 
-            result = await chat_manager.chat(content)
-            
-            # 发送思考步骤
-            if 'thinking_steps' in result:
-                for step in result['thinking_steps']:
+                # 清空之前的思考步骤
+                await websocket.send_json({
+                    "type": "thinking_clear"
+                })
+                
+                # 处理用户消息并获取回复
+                if not chat_manager:
                     await websocket.send_json({
-                        "type": "thinking_step",
-                        "step": step
+                        "type": "error",
+                        "message": "Chat manager not initialized"
                     })
-            
-            # 发送最终回复
-            await websocket.send_json({
-                "type": "message",
-                "response": result['response']
-            })
-            
+                    continue
+                    
+                result = await chat_manager.chat(content)
+                
+                # 发送思考步骤
+                if 'thinking_steps' in result:
+                    for step in result['thinking_steps']:
+                        await websocket.send_json({
+                            "type": "thinking_step",
+                            "step": step
+                        })
+                
+                # 发送最终回复
+                await websocket.send_json({
+                    "type": "message",
+                    "response": result['response']
+                })
+                
+            except WebSocketDisconnect:
+                print("WebSocket连接已断开")
+                return
+            except Exception as e:
+                print(f"处理消息时发生错误: {str(e)}")
+                try:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"处理消息时发生错误: {str(e)}"
+                    })
+                except:
+                    print("发送错误消息失败")
+                continue
+                
     except WebSocketDisconnect:
-        print("WebSocket连接已关闭")
+        print("WebSocket连接初始化时断开")
+    except Exception as e:
+        print(f"WebSocket连接错误: {str(e)}")
+    finally:
+        print("WebSocket连接关闭")
 
 @app.get("/memories", response_model=List[Memory])
 async def get_memories():

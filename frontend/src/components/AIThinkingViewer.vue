@@ -58,7 +58,7 @@ const props = defineProps({
 })
 
 const displaySteps = ref([])
-const isThinking = ref(false)
+const isThinking = computed(() => store.state.isThinking)
 const stepDelay = 500 // 每个步骤显示的延迟时间（毫秒）
 
 // 去重后的思考步骤
@@ -83,12 +83,6 @@ watch(() => props.thinkingSteps, (newSteps) => {
   newSteps.forEach((step, index) => {
     setTimeout(() => {
       displaySteps.value.push(step)
-      // 如果是最后一个步骤，延迟结束思考状态
-      if (index === newSteps.length - 1) {
-        setTimeout(() => {
-          isThinking.value = false
-        }, 2000) // 延长到2秒，让最后的步骤显示更清晰
-      }
     }, index * stepDelay)
   })
 }, { deep: true })

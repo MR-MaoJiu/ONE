@@ -20,7 +20,7 @@ llm_logger = get_logger('llm')
 class LLMConfig(BaseModel):
     """LLM配置"""
     provider: str = "openai"
-    model: str = "gpt-3.5-turbo"
+    model: str = "gpt-4o"
     temperature: float = 0.7
     max_tokens: int = 2000
     api_key: Optional[str] = None
@@ -162,36 +162,55 @@ class LLMService:
                 'content': query
             })
             
-            # 调用OpenAI API
-            response = self.client.chat.completions.create(
-                model=self.config.model,
-                messages=messages,
-                temperature=self.config.temperature,
-                max_tokens=self.config.max_tokens
-            )
-            
-            # 提取回复文本
-            reply = response.choices[0].message.content.strip()
-            
-            # 记录输出结果
-            self._record_thinking_step(
-                'output',
-                '生成回答',
-                f'我的回答是："{reply}"'
-            )
-            
-            return {
-                'response': reply,
-                'thinking_steps': self.thinking_steps
-            }
+            try:
+                # 调用OpenAI API
+                response = self.client.chat.completions.create(
+                    model=self.config.model,
+                    messages=messages,
+                    temperature=self.config.temperature,
+                    max_tokens=self.config.max_tokens
+                )
+                
+                # 提取回复文本
+                reply = response.choices[0].message.content.strip()
+                
+                # 记录输出结果
+                self._record_thinking_step(
+                    'output',
+                    '生成回答',
+                    f'我的回答是："{reply}"'
+                )
+                
+                return {
+                    'response': reply,
+                    'thinking_steps': self.thinking_steps
+                }
+                
+            except Exception as api_error:
+                # 记录API调用错误
+                error_message = f"调用API时发生错误：{str(api_error)}"
+                self._record_thinking_step(
+                    'error',
+                    'API调用失败',
+                    error_message
+                )
+                return {
+                    'response': '抱歉，我现在无法回答您的问题。请稍后再试。',
+                    'thinking_steps': self.thinking_steps
+                }
             
         except Exception as e:
+            # 记录其他错误
+            error_message = f"处理过程中出现了错误：{str(e)}"
             self._record_thinking_step(
                 'error',
                 '发生错误',
-                f'抱歉，处理过程中出现了错误：{str(e)}'
+                error_message
             )
-            raise
+            return {
+                'response': '抱歉，处理您的请求时出现了错误。请稍后再试。',
+                'thinking_steps': self.thinking_steps
+            }
 
     async def generate_json(self, prompt: str) -> Dict[str, Any]:
         """
@@ -215,6 +234,7 @@ class LLMService:
                     'content': prompt
                 }
             ]
+            llm_logger.info("调用LLM：%s", messages)
             
             # 调用OpenAI API
             response = self.client.chat.completions.create(

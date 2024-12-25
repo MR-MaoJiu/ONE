@@ -9,10 +9,9 @@ export default createStore({
     messages: [], // 聊天消息列表
     memories: [], // 记忆列表
     snapshots: [], // 快照列表
-    wsConnection: null, // WebSocket连接
-    isConnected: false, // WebSocket连接状态
     currentAnalysis: null, // 当前分析数据
-    thinkingSteps: [], // 新增：AI思考步骤
+    thinkingSteps: [], // AI思考步骤
+    isThinking: false, // 是否正在思考
   },
   
   mutations: {
@@ -28,34 +27,31 @@ export default createStore({
     SET_SNAPSHOTS(state, snapshots) {
       state.snapshots = snapshots
     },
-    SET_WS_CONNECTION(state, connection) {
-      state.wsConnection = connection
-      state.isConnected = connection !== null
-    },
-    SET_CONNECTED(state, status) {
-      state.isConnected = status
-    },
     SET_CURRENT_ANALYSIS(state, analysis) {
       state.currentAnalysis = analysis
     },
-    // 新增：设置思考步骤
     SET_THINKING_STEPS(state, steps) {
       state.thinkingSteps = steps
     },
-    // 新增：添加思考步骤
     ADD_THINKING_STEP(state, step) {
       state.thinkingSteps.push(step)
     },
-    // 新增：清空思考步骤
     CLEAR_THINKING_STEPS(state) {
       state.thinkingSteps = []
+    },
+    SET_THINKING(state, status) {
+      state.isThinking = status
     }
   },
   
   actions: {
-    // 发送聊天消息 (HTTP)
+    // 发送聊天消息
     async sendMessage({ commit }, message) {
       try {
+        // 设置思考状态为true
+        commit('SET_THINKING', true)
+        commit('CLEAR_THINKING_STEPS')
+        
         // 添加用户消息到列表
         commit('ADD_MESSAGE', {
           type: 'user',
@@ -68,6 +64,11 @@ export default createStore({
           content: message.content,
           context: message.context || {}
         })
+        
+        // 更新思考步骤
+        if (response.data.thinking_steps) {
+          commit('SET_THINKING_STEPS', response.data.thinking_steps)
+        }
         
         // 添加系统回复
         if (response.data.response) {
@@ -83,90 +84,16 @@ export default createStore({
           commit('SET_CURRENT_ANALYSIS', response.data.analysis)
         }
         
+        // 设置思考状态为false
+        setTimeout(() => {
+          commit('SET_THINKING', false)
+        }, 1000) // 延迟1秒关闭思考状态，让用户能看清最后的步骤
+        
         return response.data
       } catch (error) {
         console.error('发送消息失败:', error)
+        commit('SET_THINKING', false)
         throw new Error(error.response?.data?.detail || '发送消息失败')
-      }
-    },
-
-    // 初始化WebSocket连接
-    initWebSocket({ commit, dispatch }) {
-      const ws = new WebSocket('ws://localhost:8000/ws')
-      
-      ws.onopen = () => {
-        commit('SET_CONNECTED', true)
-        console.log('WebSocket连接已建立')
-      }
-      
-      ws.onmessage = (event) => {
-        const data = JSON.parse(event.data)
-        
-        switch (data.type) {
-          case 'thinking_clear':
-            // 清空思考步骤
-            commit('CLEAR_THINKING_STEPS')
-            break
-            
-          case 'thinking_step':
-            // 添加新的思考步骤
-            commit('ADD_THINKING_STEP', data.step)
-            break
-            
-          case 'message':
-            // 添加AI回复消息
-            commit('ADD_MESSAGE', {
-              type: 'system',
-              content: data.response,
-              timestamp: new Date().toISOString()
-            })
-            break
-            
-          default:
-            console.warn('未知的消息类型:', data.type)
-        }
-      }
-      
-      ws.onclose = () => {
-        commit('SET_CONNECTED', false)
-        console.log('WebSocket连接已关闭')
-        // 尝试重新连接
-        setTimeout(() => dispatch('initWebSocket'), 3000)
-      }
-      
-      ws.onerror = (error) => {
-        console.error('WebSocket错误:', error)
-        ws.close()
-      }
-      
-      commit('SET_WS_CONNECTION', ws)
-    },
-    
-    // 通过WebSocket发送消息
-    async sendWebSocketMessage({ state, commit }, message) {
-      if (!state.wsConnection || !state.isConnected) {
-        throw new Error('WebSocket未连接')
-      }
-      
-      try {
-        // 清空之前的思考步骤
-        commit('CLEAR_THINKING_STEPS')
-        
-        // 添加用户消息到列表
-        commit('ADD_MESSAGE', {
-          type: 'user',
-          content: message.content,
-          timestamp: new Date().toISOString()
-        })
-        
-        // 发送消息
-        state.wsConnection.send(JSON.stringify({
-          content: message.content,
-          context: message.context || {}
-        }))
-      } catch (error) {
-        console.error('WebSocket发送消息失败:', error)
-        throw error
       }
     },
     
@@ -203,39 +130,5 @@ export default createStore({
         throw new Error(error.response?.data?.detail || '更新快照失败')
       }
     },
-    
-    // 清空所有记忆
-    async clearMemories({ commit }) {
-      try {
-        await axios.delete('/memories')
-        commit('SET_MEMORIES', [])
-        commit('SET_SNAPSHOTS', [])
-      } catch (error) {
-        console.error('清空记忆失败:', error)
-        throw new Error(error.response?.data?.detail || '清空记忆失败')
-      }
-    },
-    
-    // 清空聊天记录
-    clearMessages({ commit }) {
-      commit('SET_MESSAGES', [])
-      commit('CLEAR_THINKING_STEPS')
-    },
-    
-    // 开始新对话
-    startNewConversation({ commit }) {
-      commit('SET_MESSAGES', [])
-      commit('CLEAR_THINKING_STEPS')
-    },
-
-    // 新增：记录AI思考步骤
-    recordThinkingStep({ commit }, step) {
-      commit('ADD_THINKING_STEP', step)
-    },
-
-    // 新增：清空思考步骤
-    clearThinkingSteps({ commit }) {
-      commit('CLEAR_THINKING_STEPS')
-    }
   }
 }) 

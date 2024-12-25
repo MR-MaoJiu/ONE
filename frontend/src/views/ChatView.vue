@@ -20,11 +20,8 @@
             rows="3"
           ></textarea>
           <div class="button-group">
-            <button @click="sendMessage" :disabled="!inputMessage.trim()">发送</button>
+            <button @click="sendMessage" :disabled="!inputMessage.trim() || isThinking">发送</button>
             <button @click="clearChat" class="btn-secondary">清空对话</button>
-            <button @click="toggleConnection" class="btn-secondary">
-              {{ isConnected ? '断开WebSocket' : '连接WebSocket' }}
-            </button>
           </div>
         </div>
       </div>
@@ -45,15 +42,10 @@ const store = useStore()
 const inputMessage = ref('')
 const messagesContainer = ref(null)
 
-// 从store获取消息列表和连接状态
+// 从store获取状态
 const messages = computed(() => store.state.messages)
-const isConnected = computed(() => store.state.isConnected)
 const thinkingSteps = computed(() => store.state.thinkingSteps)
-
-// 在组件挂载时初始化WebSocket连接
-onMounted(() => {
-  store.dispatch('initWebSocket')
-})
+const isThinking = computed(() => store.state.isThinking)
 
 // 监听消息列表变化，自动滚动到底部
 watch(messages, () => {
@@ -66,23 +58,12 @@ watch(messages, () => {
 
 // 发送消息
 async function sendMessage() {
-  if (!inputMessage.value.trim()) return
+  if (!inputMessage.value.trim() || isThinking.value) return
   
   try {
-    // 清空思考步骤
-    store.dispatch('clearThinkingSteps')
-    
-    if (isConnected.value) {
-      // 使用WebSocket发送
-      await store.dispatch('sendWebSocketMessage', {
-        content: inputMessage.value
-      })
-    } else {
-      // 使用HTTP发送
-      await store.dispatch('sendMessage', {
-        content: inputMessage.value
-      })
-    }
+    await store.dispatch('sendMessage', {
+      content: inputMessage.value
+    })
     
     // 清空输入框
     inputMessage.value = ''
@@ -101,16 +82,8 @@ function newLine(e) {
 // 清空聊天记录
 function clearChat() {
   if (confirm('确定要清空聊天记录吗？')) {
-    store.dispatch('clearMessages')
-  }
-}
-
-// 切换WebSocket连接
-function toggleConnection() {
-  if (isConnected.value) {
-    store.state.wsConnection?.close()
-  } else {
-    store.dispatch('initWebSocket')
+    store.commit('SET_MESSAGES', [])
+    store.commit('CLEAR_THINKING_STEPS')
   }
 }
 
