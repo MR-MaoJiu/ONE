@@ -7,6 +7,7 @@ from services.llm_service import LLMService
 from core.storage.memory_storage import MemoryStorage
 from core.snapshot.snapshot_manager import SnapshotManager
 from utils.logger import get_logger
+import asyncio
 
 chat_logger = get_logger('chat')
 
@@ -61,21 +62,11 @@ class ChatManager:
             # 生成回复
             result = await self.llm_service.chat(query, context)
             
-            # 保存记忆
-            memory = await self.storage.save_memory(
-                content=query,
-                metadata={'is_user': True}
-            )
-            await self.storage.save_memory(
-                content=result['response'],
-                metadata={'is_user': False}
-            )
-            
-            # 创建快照
-            await self.snapshot_manager.create_snapshot(memory)
-            
             # 更新历史记录
             self._add_to_history(query, result['response'])
+            
+            # 异步处理存储操作
+            asyncio.create_task(self._process_storage(query, result['response']))
             
             return result
             
@@ -85,6 +76,33 @@ class ChatManager:
                 'response': "抱歉，处理您的输入时出现了错误。",
                 'thinking_steps': []
             }
+    
+    async def _process_storage(self, query: str, response: str):
+        """
+        异步处理存储操作
+        
+        Args:
+            query: 用户输入
+            response: AI回复
+        """
+        try:
+            # 保存记忆
+            memory = await self.storage.save_memory(
+                content=query,
+                metadata={'is_user': True}
+            )
+            await self.storage.save_memory(
+                content=response,
+                metadata={'is_user': False}
+            )
+            
+            # 创建快照
+            await self.snapshot_manager.create_snapshot(memory)
+            
+            chat_logger.info("存储操作完成")
+            
+        except Exception as e:
+            chat_logger.error("存储操作失败：%s", str(e))
     
     def _add_to_history(self, query: str, response: str):
         """添加到历史记录"""
