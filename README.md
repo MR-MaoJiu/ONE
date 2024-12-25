@@ -134,3 +134,10 @@ npm run dev
   - 确保API文档格式正确
   - 注意API调用频率限制
   - 定期检查API可用性
+
+## UI参考
+![ai.png](docs/ai.png)
+
+## 赞助
+1. 如果您觉得对您有用的话请给个star或者打赏一下，您的激励会使我更加有动力！！！
+![img.png](docs/img.png)
