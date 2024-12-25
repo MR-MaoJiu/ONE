@@ -4,6 +4,34 @@ import axios from 'axios'
 // 配置 axios 默认值
 axios.defaults.headers.common['Content-Type'] = 'application/json'
 
+// 从localStorage加载API设置
+const loadApiSettings = () => {
+  try {
+    const settings = localStorage.getItem('api_settings')
+    if (settings) {
+      return JSON.parse(settings)
+    }
+  } catch (e) {
+    console.error('加载API设置失败:', e)
+  }
+  return {
+    enableApiCall: false,
+    apiDocs: ''
+  }
+}
+
+// 保存API设置到localStorage
+const saveApiSettings = (settings) => {
+  try {
+    localStorage.setItem('api_settings', JSON.stringify(settings))
+  } catch (e) {
+    console.error('保存API设置失败:', e)
+  }
+}
+
+// 加载初始API设置
+const initialApiSettings = loadApiSettings()
+
 export default createStore({
   state: {
     messages: [], // 聊天消息列表
@@ -12,8 +40,8 @@ export default createStore({
     currentAnalysis: null, // 当前分析数据
     thinkingSteps: [], // AI思考步骤
     isThinking: false, // 是否正在思考
-    enableApiCall: false, // 是否启用API调用功能
-    apiDocs: '', // API文档内容
+    enableApiCall: initialApiSettings.enableApiCall, // 是否启用API调用功能
+    apiDocs: initialApiSettings.apiDocs, // API文档内容
   },
   
   mutations: {
@@ -46,9 +74,19 @@ export default createStore({
     },
     SET_API_CALL_ENABLED(state, enabled) {
       state.enableApiCall = enabled
+      // 保存设置
+      saveApiSettings({
+        enableApiCall: state.enableApiCall,
+        apiDocs: state.apiDocs
+      })
     },
     SET_API_DOCS(state, docs) {
       state.apiDocs = docs
+      // 保存设置
+      saveApiSettings({
+        enableApiCall: state.enableApiCall,
+        apiDocs: state.apiDocs
+      })
     },
     CLEAR_ALL(state) {
       state.messages = []
@@ -56,7 +94,7 @@ export default createStore({
       state.snapshots = []
       state.thinkingSteps = []
       state.currentAnalysis = null
-      state.apiDocs = ''
+      // 不清除API设置
     }
   },
   

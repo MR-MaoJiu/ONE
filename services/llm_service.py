@@ -243,6 +243,13 @@ class LLMService:
             Dict[str, Any]: API分析结果，包含是否需要调用API、调用计划等
         """
         try:
+            # 记录开始分析的思考步骤
+            self._record_thinking_step(
+                'api_analysis_start',
+                'API分析开始',
+                '我正在分析您的需求和API文档...'
+            )
+            
             # 构建提示词
             prompt = f"""请分析以下用户需求和API文档，生成API调用计划：
 
@@ -262,10 +269,19 @@ API文档：
             "method": "GET/POST/PUT/DELETE",
             "headers": {{}},  // 请求头
             "params": {{}},   // URL参数
-            "data": {{}}      // 请求体数据
+            "data": {{}},     // 请求体数据
+            "purpose": "这个API调用的目的是什么",  // 新增：说明这个API调用的目的
+            "expected_result": "预期会得到什么结果"  // 新增：预期结果说明
         }}
     ]
 }}"""
+
+            # 记录正在分析的思考步骤
+            self._record_thinking_step(
+                'api_analysis_process',
+                'API需求分析',
+                f'我正在分析您的需求："{query}"，并将其与API文档进行匹配...'
+            )
 
             # 调用OpenAI API
             response = self.client.chat.completions.create(
@@ -288,16 +304,63 @@ API文档：
             # 解析响应
             result = json.loads(response.choices[0].message.content.strip())
             llm_logger.info("API分析结果：%s", result)
+            
+            # 记录分析结果的思考步骤
+            if result['should_call_api']:
+                self._record_thinking_step(
+                    'api_analysis_result',
+                    'API调用决策',
+                    f"我决定调用API，原因是：{result['reason']}"
+                )
+                
+                # 记录调用计划
+                self._record_thinking_step(
+                    'api_call_plan',
+                    'API调用计划',
+                    f"调用计划：\n{result['plan']}"
+                )
+                
+                # 记录每个API调用的详细信息
+                for i, call in enumerate(result['api_calls'], 1):
+                    self._record_thinking_step(
+                        'api_call_detail',
+                        f'API调用 #{i} 详情',
+                        f"""调用信息：
+- 目的：{call.get('purpose', '未指定')}
+- URL：{call['url']}
+- 方法：{call['method']}
+- 预期结果：{call.get('expected_result', '未指定')}
+- 参数：{json.dumps(call.get('params', {}), ensure_ascii=False, indent=2)}
+- 数据：{json.dumps(call.get('data', {}), ensure_ascii=False, indent=2)}"""
+                    )
+            else:
+                self._record_thinking_step(
+                    'api_analysis_result',
+                    'API调用决策',
+                    f"我决定不调用API，原因是：{result['reason']}"
+                )
+            
+            # 将思考步骤添加到结果中
+            result['thinking_steps'] = self.thinking_steps
             return result
             
         except Exception as e:
             error_msg = f"API分析失败：{str(e)}"
             llm_logger.error(error_msg)
+            
+            # 记录错误的思考步骤
+            self._record_thinking_step(
+                'api_analysis_error',
+                'API分析错误',
+                error_msg
+            )
+            
             return {
                 'should_call_api': False,
                 'reason': error_msg,
                 'plan': '无法生成API调用计划',
-                'api_calls': []
+                'api_calls': [],
+                'thinking_steps': self.thinking_steps
             }
 
     async def generate_json(self, prompt: str) -> Dict[str, Any]:
