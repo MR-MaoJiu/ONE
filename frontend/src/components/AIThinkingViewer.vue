@@ -64,11 +64,36 @@ const stepDelay = 500 // 每个步骤显示的延迟时间（毫秒）
 // 去重后的思考步骤
 const uniqueSteps = computed(() => {
   const steps = new Map()
+  const finalSteps = []
+  const responseSteps = []
+  
+  // 将步骤分类并去重
   displaySteps.value.forEach(step => {
     const key = `${step.type}-${step.description}`
-    steps.set(key, step)
+    
+    // 将生成回答和最终回答的步骤单独存储
+    if (step.type === 'response_generation' || step.type === 'final_response') {
+      if (!responseSteps.some(s => s.type === step.type)) {
+        responseSteps.push(step)
+      }
+    } else {
+      steps.set(key, step)
+    }
   })
-  return Array.from(steps.values())
+  
+  // 将普通步骤添加到最终数组
+  finalSteps.push(...Array.from(steps.values()))
+  
+  // 按照特定顺序添加响应步骤
+  const responseOrder = ['response_generation', 'final_response']
+  responseOrder.forEach(type => {
+    const step = responseSteps.find(s => s.type === type)
+    if (step) {
+      finalSteps.push(step)
+    }
+  })
+  
+  return finalSteps
 })
 
 // 监听思考步骤的变化
@@ -111,12 +136,26 @@ watch(() => store.state.isConnected, (newValue) => {
 // 获取步骤类型的图标
 const getTypeIcon = (type) => {
   const icons = {
-    'input': '📥',
-    'context': '🔄',
-    'memory': '💭',
-    'process': '⚙️',
-    'output': '📤',
-    'error': '⚠️'
+    // 基础步骤
+    'input_analysis': '🔍',
+    'history_analysis': '📜',
+    'memory_analysis': '🧠',
+    'response_generation': '✍️',
+    'final_response': '📝',
+    'error_handling': '⚠️',
+    
+    // API相关步骤
+    'api_feature_check': '🔌',
+    'api_doc_analysis': '📚',
+    'requirement_analysis': '📋',
+    'api_matching': '🔄',
+    'api_decision': '🤔',
+    'api_plan': '📊',
+    'api_preparation': '🛠️',
+    'api_request': '📤',
+    'api_response': '📥',
+    'api_error': '❌',
+    'api_summary': '📑'
   }
   return icons[type] || '❓'
 }
@@ -142,7 +181,6 @@ const getTypeText = (type) => {
     'api_preparation': 'API调用准备',
     'api_request': 'API请求发送',
     'api_response': 'API响应接收',
-    'api_result_analysis': 'API结果分析',
     'api_error': 'API错误处理',
     'api_summary': 'API调用总结'
   }
