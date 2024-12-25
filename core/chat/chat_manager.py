@@ -70,9 +70,9 @@ class ChatManager:
                 # 添加API调用相关的思考步骤
                 thinking_steps = []
                 thinking_steps.append({
-                    'type': 'api_feature',
-                    'description': 'API功能检查',
-                    'result': '检测到API调用功能已启用，我将尝试通过调用API来协助回答您的问题。'
+                    'type': 'api_feature_check',
+                    'description': 'API功能状态',
+                    'result': '已启用API调用功能，我将尝试通过调用API来获取所需信息。'
                 })
                 
                 # 让LLM分析API文档和用户需求
@@ -93,12 +93,14 @@ class ChatManager:
                     
                     for i, call in enumerate(api_calls, 1):
                         thinking_steps.append({
-                            'type': 'api_call_start',
-                            'description': f'开始执行API调用 #{i}',
-                            'result': f"""正在调用API：
-- URL：{call.get('url', '')}
+                            'type': 'api_request',
+                            'description': f'发送API请求 #{i}',
+                            'result': f"""正在发送API请求：
+- 接口：{call.get('url', '')}
 - 方法：{call.get('method', 'GET')}
-- 目的：{call.get('purpose', '未指定')}"""
+- 目的：{call.get('purpose', '未指定')}
+- 参数：{json.dumps(call.get('params', {}), ensure_ascii=False, indent=2)}
+- 数据：{json.dumps(call.get('data', {}), ensure_ascii=False, indent=2)}"""
                         })
                         
                         try:
@@ -120,12 +122,12 @@ class ChatManager:
                             })
                             
                             thinking_steps.append({
-                                'type': 'api_call_success',
-                                'description': f'API调用 #{i} 成功',
-                                'result': f"""调用成功：
+                                'type': 'api_response',
+                                'description': f'API响应 #{i}',
+                                'result': f"""收到API响应：
 - 状态码：{response.status_code}
 - 响应数据：{json.dumps(result, ensure_ascii=False, indent=2)}
-- 与预期结果比对：{call.get('expected_result', '未指定预期结果')}"""
+- 数据分析：正在解析API返回的数据，以提取有用信息。"""
                             })
                             
                         except Exception as e:
@@ -137,27 +139,29 @@ class ChatManager:
                             })
                             
                             thinking_steps.append({
-                                'type': 'api_call_error',
-                                'description': f'API调用 #{i} 失败',
-                                'result': f"""调用失败：
+                                'type': 'api_error',
+                                'description': f'API错误 #{i}',
+                                'result': f"""API调用出错：
 - 错误信息：{str(e)}
-- 可能的原因：
-  1. API地址可能不正确
-  2. 网络连接问题
-  3. API服务器可能存在问题
-  4. 请求参数可能不正确"""
+- 错误分析：
+  1. 可能是网络连接问题
+  2. API地址可能不正确
+  3. 请求参数可能有误
+  4. API服务器可能暂时不可用
+- 解决方案：我将尝试其他方式回答您的问题"""
                             })
                     
                     # 添加API调用总结
                     success_count = sum(1 for r in api_results if r['success'])
                     total_count = len(api_results)
                     thinking_steps.append({
-                        'type': 'api_calls_summary',
+                        'type': 'api_summary',
                         'description': 'API调用总结',
-                        'result': f"""共执行了 {total_count} 个API调用：
-- 成功：{success_count} 个
-- 失败：{total_count - success_count} 个
-我将根据这些API调用结果来回答您的问题。"""
+                        'result': f"""API调用情况：
+- 总计调用：{total_count} 个API
+- 成功调用：{success_count} 个
+- 失败调用：{total_count - success_count} 个
+- 后续处理：我将根据获取到的API数据为您生成答案。"""
                     })
                     
                     # 更新上下文，加入API调用结果

@@ -111,9 +111,9 @@ class LLMService:
             
             # 记录接收到的查询
             self._record_thinking_step(
-                'input',
-                '理解用户问题',
-                f'我收到了你的问题："{query}"'
+                'input_analysis',
+                '输入分析',
+                f'我收到了您的问题："{query}"'
             )
             
             # 构建消息列表
@@ -124,9 +124,9 @@ class LLMService:
                 history_count = len(context["history"])
                 if history_count > 0:
                     self._record_thinking_step(
-                        'context',
-                        '回忆对话历史',
-                        f'我回忆起了我们之前的 {history_count} 条对话'
+                        'history_analysis',
+                        '历史记录分析',
+                        f'我找到了 {history_count} 条相关的历史对话'
                     )
                 for msg in context['history']:
                     messages.append({
@@ -140,8 +140,8 @@ class LLMService:
                 for memory in context['relevant_memories']:
                     memory_text += f"- {memory['content']}\n"
                 self._record_thinking_step(
-                    'memory',
-                    '搜索相关记忆',
+                    'memory_analysis',
+                    '记忆分析',
                     memory_text
                 )
                 messages.append({
@@ -151,15 +151,15 @@ class LLMService:
             
             # 添加API调用结果
             if context and 'api_results' in context:
-                api_results_text = "我获取到了以下API调用结果：\n"
+                api_results_text = "API调用结果分析：\n"
                 for result in context['api_results']:
                     if result['success']:
-                        api_results_text += f"- 成功：{json.dumps(result['data'], ensure_ascii=False)}\n"
+                        api_results_text += f"- API调用成功：\n  {json.dumps(result['data'], ensure_ascii=False, indent=2)}\n"
                     else:
-                        api_results_text += f"- 失败：{result['error']}\n"
+                        api_results_text += f"- API调用失败：\n  错误信息：{result['error']}\n"
                 self._record_thinking_step(
-                    'api_results',
-                    '处理API调用结果',
+                    'api_result_analysis',
+                    'API结果分析',
                     api_results_text
                 )
                 messages.append({
@@ -169,9 +169,9 @@ class LLMService:
             
             # 记录思考过程
             self._record_thinking_step(
-                'process',
-                '思考回答',
-                '我正在思考如何回答你的问题...'
+                'response_generation',
+                '生成回答',
+                '我正在根据以上信息生成回答...'
             )
             
             # 调用OpenAI API生成回复
@@ -194,8 +194,8 @@ class LLMService:
                 
                 # 记录输出结果
                 self._record_thinking_step(
-                    'output',
-                    '生成回答',
+                    'final_response',
+                    '最终回答',
                     f'我的回答是："{reply}"'
                 )
                 
@@ -206,10 +206,10 @@ class LLMService:
                 
             except Exception as api_error:
                 # 记录API调用错误
-                error_message = f"调用API时发生错误：{str(api_error)}"
+                error_message = f"调用AI服务时发生错误：{str(api_error)}"
                 self._record_thinking_step(
-                    'error',
-                    'API调用失败',
+                    'error_handling',
+                    '错误处理',
                     error_message
                 )
                 return {
@@ -221,8 +221,8 @@ class LLMService:
             # 记录其他错误
             error_message = f"处理过程中出现了错误：{str(e)}"
             self._record_thinking_step(
-                'error',
-                '发生错误',
+                'error_handling',
+                '错误处理',
                 error_message
             )
             return {
@@ -245,9 +245,16 @@ class LLMService:
         try:
             # 记录开始分析的思考步骤
             self._record_thinking_step(
-                'api_analysis_start',
-                'API分析开始',
-                '我正在分析您的需求和API文档...'
+                'api_doc_analysis',
+                'API文档分析',
+                '我正在分析API文档的内容...'
+            )
+            
+            # 记录用户需求分析
+            self._record_thinking_step(
+                'requirement_analysis',
+                '需求分析',
+                f'我正在分析您的需求："{query}"'
             )
             
             # 构建提示词
@@ -278,9 +285,9 @@ API文档：
 
             # 记录正在分析的思考步骤
             self._record_thinking_step(
-                'api_analysis_process',
-                'API需求分析',
-                f'我正在分析您的需求："{query}"，并将其与API文档进行匹配...'
+                'api_matching',
+                'API匹配分析',
+                '我正在将您的需求与API功能进行匹配...'
             )
 
             # 调用OpenAI API
@@ -308,26 +315,26 @@ API文档：
             # 记录分析结果的思考步骤
             if result['should_call_api']:
                 self._record_thinking_step(
-                    'api_analysis_result',
+                    'api_decision',
                     'API调用决策',
-                    f"我决定调用API，原因是：{result['reason']}"
+                    f"分析结果：需要调用API\n原因：{result['reason']}"
                 )
                 
                 # 记录调用计划
                 self._record_thinking_step(
-                    'api_call_plan',
+                    'api_plan',
                     'API调用计划',
-                    f"调用计划：\n{result['plan']}"
+                    f"具体计划：\n{result['plan']}"
                 )
                 
                 # 记录每个API调用的详细信息
                 for i, call in enumerate(result['api_calls'], 1):
                     self._record_thinking_step(
-                        'api_call_detail',
-                        f'API调用 #{i} 详情',
-                        f"""调用信息：
+                        'api_preparation',
+                        f'API {i} 调用准备',
+                        f"""准备调用以下API：
 - 目的：{call.get('purpose', '未指定')}
-- URL：{call['url']}
+- 接口：{call['url']}
 - 方法：{call['method']}
 - 预期结果：{call.get('expected_result', '未指定')}
 - 参数：{json.dumps(call.get('params', {}), ensure_ascii=False, indent=2)}
@@ -335,9 +342,9 @@ API文档：
                     )
             else:
                 self._record_thinking_step(
-                    'api_analysis_result',
+                    'api_decision',
                     'API调用决策',
-                    f"我决定不调用API，原因是：{result['reason']}"
+                    f"分析结果：不需要调用API\n原因：{result['reason']}"
                 )
             
             # 将思考步骤添加到结果中
@@ -350,8 +357,8 @@ API文档：
             
             # 记录错误的思考步骤
             self._record_thinking_step(
-                'api_analysis_error',
-                'API分析错误',
+                'error_handling',
+                '错误处理',
                 error_msg
             )
             

@@ -124,14 +124,29 @@ const getTypeIcon = (type) => {
 // 获取步骤类型的中文文本
 const getTypeText = (type) => {
   const texts = {
-    'input': '输入处理',
-    'context': '上下文加载',
-    'memory': '记忆检索',
-    'process': '思考过程',
-    'output': '生成回复',
-    'error': '错误处理'
+    // 基础步骤
+    'input_analysis': '输入分析',
+    'history_analysis': '历史分析',
+    'memory_analysis': '记忆分析',
+    'response_generation': '生成回答',
+    'final_response': '最终回答',
+    'error_handling': '错误处理',
+    
+    // API相关步骤
+    'api_feature_check': 'API功能检查',
+    'api_doc_analysis': 'API文档分析',
+    'requirement_analysis': '需求分析',
+    'api_matching': 'API匹配分析',
+    'api_decision': 'API调用决策',
+    'api_plan': 'API调用计划',
+    'api_preparation': 'API调用准备',
+    'api_request': 'API请求发送',
+    'api_response': 'API响应接收',
+    'api_result_analysis': 'API结果分析',
+    'api_error': 'API错误处理',
+    'api_summary': 'API调用总结'
   }
-  return texts[type] || '未知步骤'
+  return texts[type] || type
 }
 
 // 格式化结果文本
