@@ -11,6 +11,19 @@
     "context": {
         "user_id": "用户ID",
         "session_id": "会话ID",
+        "api_call": {
+            "enabled": true,
+            "docs": "API文档内容",
+            "calls": [
+                {
+                    "url": "API地址",
+                    "method": "请求方法",
+                    "params": {},
+                    "response": {},
+                    "timestamp": "调用时间"
+                }
+            ]
+        },
         "other_context": "其他上下文信息"
     }
 }
@@ -24,7 +37,12 @@
     "memory_refs": ["memory_id1", "memory_id2"],
     "category": "分类名称",
     "timestamp": "2024-12-24T14:08:07.103Z",
-    "importance": 0.8
+    "importance": 0.8,
+    "api_summary": {
+        "calls_count": 0,
+        "success_rate": 1.0,
+        "key_results": ["API调用结果1", "API调用结果2"]
+    }
 }
 ```
 
@@ -36,7 +54,12 @@
     "keywords": ["关键词1", "关键词2"],
     "snapshot_refs": ["snapshot_id1", "snapshot_id2"],
     "description": "分类描述",
-    "timestamp": "2024-12-24T14:08:07.103Z"
+    "timestamp": "2024-12-24T14:08:07.103Z",
+    "api_patterns": {
+        "common_apis": ["常用API1", "常用API2"],
+        "success_patterns": ["成功模式1", "成功模式2"],
+        "failure_patterns": ["失败模式1", "失败模式2"]
+    }
 }
 ```
 
@@ -197,3 +220,90 @@
    - 只返回相关度大于 0.5 的记忆
    - 按相关度从高到低排序
    - 考虑内容相关性、时间相关性和上下文匹配 
+
+## API调用记忆处理
+
+### API调用记录结构
+```json
+{
+    "call_id": "call_uuid",
+    "timestamp": "2024-12-24T14:08:07.103Z",
+    "api_info": {
+        "url": "API地址",
+        "method": "请求方法",
+        "headers": {},
+        "params": {},
+        "data": {}
+    },
+    "response": {
+        "status_code": 200,
+        "data": {},
+        "error": null
+    },
+    "context": {
+        "user_query": "用户原始查询",
+        "analysis": "API调用分析说明"
+    }
+}
+```
+
+### API记忆处理流程
+
+1. 记录API调用
+   - 保存完整的API调用信息
+   - 记录调用上下文和结果
+   - 生成调用总结
+
+2. 快照生成
+   - 分析API调用模式
+   - 提取关键结果
+   - 评估调用重要性
+
+3. 元快照更新
+   - 识别常用API模式
+   - 总结成功/失败经验
+   - 优化后续调用策略
+
+### API相关方法
+
+#### MemoryStorage扩展
+```python
+def save_api_call(call_id: str, call_data: Dict)
+def get_api_calls(memory_id: str) -> List[Dict]
+def analyze_api_patterns(timeframe: str) -> Dict
+```
+
+#### SnapshotManager扩展
+```python
+def create_api_snapshot(api_calls: List[Dict], context: Dict) -> str
+def update_meta_with_api_patterns(meta_id: str, patterns: Dict)
+def get_api_success_patterns(category: str) -> List[Dict]
+```
+
+#### SnapshotGenerator扩展
+```python
+def generate_api_summary(api_calls: List[Dict]) -> Dict
+def extract_api_patterns(snapshots: List[Dict]) -> Dict
+```
+
+## API调用注意事项
+
+1. 记忆存储
+   - API调用信息应该完整保存
+   - 包含足够的上下文信息
+   - 记录调用时间和性能数据
+
+2. 快照生成
+   - 关注API调用的结果和影响
+   - 提取可复用的调用模式
+   - 记录错误处理经验
+
+3. 检索优化
+   - 考虑API调用历史
+   - 优先使用成功的调用模式
+   - 避免重复失败的模式
+
+4. 安全考虑
+   - 敏感信息脱敏
+   - API密钥等凭证不存储
+   - 遵循数据保护规范 
