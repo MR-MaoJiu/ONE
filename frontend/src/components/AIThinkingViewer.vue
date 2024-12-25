@@ -1,10 +1,11 @@
 <template>
-  <div class="thinking-container">
+  <div class="thinking-container" :class="{ 'show': isShowThinking }">
     <div class="thinking-header">
       <div class="header-content">
         <div class="pulse-dot" :class="{ 'active': isThinking }"></div>
         <h3>AI 思考过程</h3>
       </div>
+      <button v-if="isMobile" class="close-thinking" @click="closeThinking">×</button>
     </div>
     <div class="thinking-content">
       <template v-if="uniqueSteps.length">
@@ -60,6 +61,22 @@ const props = defineProps({
 const displaySteps = ref([])
 const isThinking = computed(() => store.state.isThinking)
 const stepDelay = 500 // 每个步骤显示的延迟时间（毫秒）
+
+// 移动端相关状态
+const isMobile = computed(() => window.innerWidth <= 768)
+const isShowThinking = ref(false)
+
+// 监听思考状态变化
+watch(isThinking, (newValue) => {
+  if (isMobile.value) {
+    isShowThinking.value = newValue
+  }
+})
+
+// 关闭思考面板
+const closeThinking = () => {
+  isShowThinking.value = false
+}
 
 // 去重后的思考步骤
 const uniqueSteps = computed(() => {
@@ -194,9 +211,20 @@ const formatResult = (result) => {
   }
   return result
 }
+
+// 切换思考面板显示状态
+const toggleThinking = () => {
+  isShowThinking.value = !isShowThinking.value
+}
+
+// 暴露方法给父组件
+defineExpose({
+  toggleThinking
+})
 </script>
 
 <style scoped>
+/* PC端样式 */
 .thinking-container {
   width: 30%;
   height: 100%;
@@ -434,27 +462,161 @@ const formatResult = (result) => {
   border-radius: 3px;
 }
 
-/* 响应式设计 */
+/* 移动端专用样式 */
 @media (max-width: 768px) {
   .thinking-container {
+    position: fixed;
+    top: 0;
+    left: 0;
     width: 100%;
+    height: 100%;
     border-radius: 0;
+    transform: translateY(100%);
+    transition: transform 0.3s ease;
+    z-index: 1000;
+    background: rgba(26, 26, 26, 0.98);
+    backdrop-filter: blur(20px);
   }
-  
+
+  .thinking-container.show {
+    transform: translateY(0);
+  }
+
+  .thinking-header {
+    position: relative;
+    padding: 16px;
+    background: linear-gradient(180deg, #1a1a1a 0%, transparent 100%);
+  }
+
+  .close-thinking {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 24px;
+    padding: 8px;
+    cursor: pointer;
+    transition: color 0.3s ease;
+  }
+
+  .close-thinking:hover {
+    color: #00ff9d;
+  }
+
+  .header-content {
+    justify-content: center;
+  }
+
+  .thinking-content {
+    padding: 20px 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
   .thinking-step {
-    flex-direction: column;
-    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
   }
-  
+
   .step-number {
-    flex-direction: row;
-    gap: 8px;
+    display: none;
   }
-  
-  .step-line {
-    width: 20px;
-    height: 2px;
+
+  .step-content {
     margin: 0;
+  }
+
+  .step-type {
+    font-size: 14px;
+    color: #00ff9d;
+    margin-bottom: 8px;
+  }
+
+  .type-icon {
+    font-size: 16px;
+    margin-right: 8px;
+  }
+
+  .step-description {
+    font-size: 13px;
+    color: #e0e0e0;
+    margin-bottom: 10px;
+  }
+
+  .step-result {
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: 12px;
+    padding: 12px;
+    margin-top: 10px;
+  }
+
+  .step-result pre {
+    font-size: 12px;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  .thinking-animation-container {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .thinking-status {
+    text-align: center;
+  }
+
+  .thinking-animation {
+    margin-bottom: 16px;
+  }
+
+  .circle {
+    width: 10px;
+    height: 10px;
+    margin: 0 4px;
+  }
+
+  .thinking-text {
+    font-size: 14px;
+    color: #00ff9d;
+  }
+
+  .no-thinking {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    text-align: center;
+  }
+
+  .idle-text {
+    font-size: 14px;
+    color: #666;
+    line-height: 1.5;
+  }
+
+  /* 移动端动画 */
+  @keyframes slideIn {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .thinking-step {
+    animation: slideIn 0.3s ease-out forwards;
   }
 }
 </style> 
