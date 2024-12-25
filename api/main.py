@@ -72,9 +72,13 @@ class Message(BaseModel):
     Attributes / 属性:
         content: The message text content / 消息文本内容
         context: Optional context information for the message / 消息的可选上下文信息
+        enable_api_call: Whether to enable API call functionality / 是否启用API调用功能
+        api_docs: API documentation content when API call is enabled / 启用API调用时的API文档内容
     """
     content: str = Field(..., description="The message content / 消息内容")
     context: Dict[str, Any] = Field(default={}, description="Optional context information / 可选的上下文信息")
+    enable_api_call: bool = Field(default=False, description="Whether to enable API call functionality / 是否启用API调用功能")
+    api_docs: str = Field(default="", description="API documentation content / API文档内容")
 
 class Memory(BaseModel):
     """
@@ -138,7 +142,22 @@ async def chat(message: Message):
         if not chat_manager:
             raise HTTPException(status_code=503, detail="Chat manager not initialized / 聊天管理器未初始化")
             
-        result = await chat_manager.chat(message.content)
+        # 添加API调用相关的上下文信息
+        context = message.context or {}
+        if message.enable_api_call:
+            context.update({
+                'enable_api_call': True,
+                'api_docs': message.api_docs,
+                'api_warning': '注意：API调用可能会增加响应时间'
+            })
+        else:
+            context.update({
+                'enable_api_call': False,
+                'api_docs': '',
+                'api_warning': ''
+            })
+            
+        result = await chat_manager.chat(message.content, context)
         return ChatResponse(
             response=result['response'],
             thinking_steps=result['thinking_steps']
@@ -168,6 +187,8 @@ async def websocket_endpoint(websocket: WebSocket):
                 # 等待接收消息
                 data = await websocket.receive_json()
                 content = data.get("content", "")
+                enable_api_call = data.get("enable_api_call", False)
+                api_docs = data.get("api_docs", "")
                 
                 # 清空之前的思考步骤
                 await websocket.send_json({
@@ -181,8 +202,23 @@ async def websocket_endpoint(websocket: WebSocket):
                         "message": "Chat manager not initialized"
                     })
                     continue
+                
+                # 构建上下文信息
+                context = {}
+                if enable_api_call:
+                    context.update({
+                        'enable_api_call': True,
+                        'api_docs': api_docs,
+                        'api_warning': '注意：API调用可能会增加响应时间'
+                    })
+                else:
+                    context.update({
+                        'enable_api_call': False,
+                        'api_docs': '',
+                        'api_warning': ''
+                    })
                     
-                result = await chat_manager.chat(content)
+                result = await chat_manager.chat(content, context)
                 
                 # 发送思考步骤
                 if 'thinking_steps' in result:

@@ -149,6 +149,24 @@ class LLMService:
                     'content': memory_text
                 })
             
+            # 添加API调用结果
+            if context and 'api_results' in context:
+                api_results_text = "我获取到了以下API调用结果：\n"
+                for result in context['api_results']:
+                    if result['success']:
+                        api_results_text += f"- 成功：{json.dumps(result['data'], ensure_ascii=False)}\n"
+                    else:
+                        api_results_text += f"- 失败：{result['error']}\n"
+                self._record_thinking_step(
+                    'api_results',
+                    '处理API调用结果',
+                    api_results_text
+                )
+                messages.append({
+                    'role': 'system',
+                    'content': api_results_text
+                })
+            
             # 记录思考过程
             self._record_thinking_step(
                 'process',
@@ -212,6 +230,76 @@ class LLMService:
                 'thinking_steps': self.thinking_steps
             }
 
+    async def analyze_api(self, query: str, api_docs: str, context: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        分析API文档和用户需求，生成API调用计划
+        
+        Args:
+            query: 用户输入
+            api_docs: API文档内容
+            context: 上下文信息
+            
+        Returns:
+            Dict[str, Any]: API分析结果，包含是否需要调用API、调用计划等
+        """
+        try:
+            # 构建提示词
+            prompt = f"""请分析以下用户需求和API文档，生成API调用计划：
+
+用户需求：{query}
+
+API文档：
+{api_docs}
+
+请按以下JSON格式返回分析结果：
+{{
+    "should_call_api": true/false,  // 是否需要调用API
+    "reason": "解释为什么需要/不需要调用API",
+    "plan": "API调用计划的详细说明",
+    "api_calls": [  // 需要调用的API列表
+        {{
+            "url": "API地址",
+            "method": "GET/POST/PUT/DELETE",
+            "headers": {{}},  // 请求头
+            "params": {{}},   // URL参数
+            "data": {{}}      // 请求体数据
+        }}
+    ]
+}}"""
+
+            # 调用OpenAI API
+            response = self.client.chat.completions.create(
+                model=self.config.model,
+                messages=[
+                    {
+                        'role': 'system',
+                        'content': '你是一个API分析专家，请帮助分析用户需求并生成API调用计划。'
+                    },
+                    {
+                        'role': 'user',
+                        'content': prompt
+                    }
+                ],
+                temperature=0.7,
+                max_tokens=2000,
+                response_format={"type": "json_object"}
+            )
+            
+            # 解析响应
+            result = json.loads(response.choices[0].message.content.strip())
+            llm_logger.info("API分析结果：%s", result)
+            return result
+            
+        except Exception as e:
+            error_msg = f"API分析失败：{str(e)}"
+            llm_logger.error(error_msg)
+            return {
+                'should_call_api': False,
+                'reason': error_msg,
+                'plan': '无法生成API调用计划',
+                'api_calls': []
+            }
+
     async def generate_json(self, prompt: str) -> Dict[str, Any]:
         """
         生成JSON格式的回复
@@ -249,19 +337,12 @@ class LLMService:
             result = response.choices[0].message.content.strip()
             llm_logger.info("生成JSON回复：%s", result)
             
-            # 清理可能的 Markdown 代码块标记
-            result = result.replace('```json', '').replace('```', '').strip()
-            
             # 解析JSON
-            if not result:
-                return {}
-                
-            try:
-                return json.loads(result)
-            except json.JSONDecodeError:
-                llm_logger.error(f"JSON解析失败: {result}")
-                return {}
+            return json.loads(result)
             
         except Exception as e:
-            llm_logger.error(f"生成JSON失败: {str(e)}")
-            return {} 
+            error_msg = f"生成JSON失败：{str(e)}"
+            llm_logger.error(error_msg)
+            return {
+                'error': error_msg
+            } 

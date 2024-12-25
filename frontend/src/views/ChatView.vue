@@ -1,8 +1,42 @@
 <template>
   <div class="chat-container">
     <div class="split-view">
+      <!-- API调用设置区域 -->
+      <div class="api-settings" v-if="showApiSettings">
+        <div class="api-settings-header">
+          <h3>API调用设置</h3>
+          <button class="close-btn" @click="toggleApiSettings">×</button>
+        </div>
+        <div class="api-settings-content">
+          <div class="api-switch">
+            <label class="switch">
+              <input type="checkbox" v-model="enableApiCall">
+              <span class="slider"></span>
+            </label>
+            <span class="switch-label">启用API调用</span>
+          </div>
+          <div class="api-warning" v-if="enableApiCall">
+            注意：启用API调用可能会增加响应时间
+          </div>
+          <div class="api-docs-input" v-if="enableApiCall">
+            <label>API文档：</label>
+            <textarea
+              v-model="apiDocs"
+              placeholder="请输入API文档内容..."
+              rows="5"
+            ></textarea>
+          </div>
+        </div>
+      </div>
+
       <!-- 聊天区域 -->
       <div class="chat-section">
+        <div class="chat-header">
+          <button class="settings-btn" @click="toggleApiSettings">
+            <span class="settings-icon">⚙️</span>
+            API设置
+          </button>
+        </div>
         <div class="messages-container" ref="messagesContainer">
           <div v-for="(message, index) in messages" :key="index" 
                :class="['message', message.type === 'user' ? 'user-message' : 'system-message']">
@@ -41,11 +75,23 @@ import AIThinkingViewer from '../components/AIThinkingViewer.vue'
 const store = useStore()
 const inputMessage = ref('')
 const messagesContainer = ref(null)
+const showApiSettings = ref(false)
 
 // 从store获取状态
 const messages = computed(() => store.state.messages)
 const thinkingSteps = computed(() => store.state.thinkingSteps)
 const isThinking = computed(() => store.state.isThinking)
+
+// API调用相关的计算属性
+const enableApiCall = computed({
+  get: () => store.state.enableApiCall,
+  set: (value) => store.dispatch('setApiCallEnabled', value)
+})
+
+const apiDocs = computed({
+  get: () => store.state.apiDocs,
+  set: (value) => store.dispatch('setApiDocs', value)
+})
 
 // 监听消息列表变化，自动滚动到底部
 watch(messages, () => {
@@ -55,6 +101,11 @@ watch(messages, () => {
     }
   })
 })
+
+// 切换API设置面板
+function toggleApiSettings() {
+  showApiSettings.value = !showApiSettings.value
+}
 
 // 发送消息
 async function sendMessage() {
@@ -95,7 +146,7 @@ function formatTime(timestamp) {
 
 <style scoped>
 .chat-container {
-  height: calc(100vh - 60px); /* 减去导航栏的高度 */
+  height: calc(100vh - 60px);
   padding: 10px;
   box-sizing: border-box;
   background: #1a1a1a;
@@ -108,6 +159,145 @@ function formatTime(timestamp) {
   max-height: 100%;
 }
 
+/* API设置面板样式 */
+.api-settings {
+  width: 300px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.api-settings-header {
+  padding: 15px;
+  background: #1a1a1a;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #333;
+}
+
+.api-settings-header h3 {
+  margin: 0;
+  color: #e0e0e0;
+  font-size: 1.1em;
+}
+
+.close-btn {
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 1.5em;
+  cursor: pointer;
+  padding: 0 5px;
+}
+
+.close-btn:hover {
+  color: #e0e0e0;
+}
+
+.api-settings-content {
+  padding: 15px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.api-switch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 50px;
+  height: 24px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #333;
+  transition: .4s;
+  border-radius: 24px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 16px;
+  width: 16px;
+  left: 4px;
+  bottom: 4px;
+  background-color: #fff;
+  transition: .4s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background: linear-gradient(135deg, #00ff9d 0%, #00a8ff 100%);
+}
+
+input:checked + .slider:before {
+  transform: translateX(26px);
+}
+
+.switch-label {
+  color: #e0e0e0;
+  font-size: 0.95em;
+}
+
+.api-warning {
+  color: #ff9d00;
+  font-size: 0.85em;
+  margin-bottom: 15px;
+  padding: 8px;
+  background: rgba(255, 157, 0, 0.1);
+  border-radius: 4px;
+}
+
+.api-docs-input {
+  margin-top: 15px;
+}
+
+.api-docs-input label {
+  display: block;
+  color: #e0e0e0;
+  margin-bottom: 8px;
+}
+
+.api-docs-input textarea {
+  width: 100%;
+  min-height: 150px;
+  padding: 8px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #e0e0e0;
+  font-size: 0.9em;
+  resize: vertical;
+}
+
+.api-docs-input textarea:focus {
+  outline: none;
+  border-color: #00ff9d;
+}
+
+/* 聊天区域样式 */
 .chat-section {
   flex: 1;
   display: flex;
@@ -117,6 +307,34 @@ function formatTime(timestamp) {
   box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
   overflow: hidden;
   max-height: 100%;
+}
+
+.chat-header {
+  padding: 10px;
+  background: #1a1a1a;
+  border-bottom: 1px solid #333;
+}
+
+.settings-btn {
+  background: none;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.9em;
+}
+
+.settings-btn:hover {
+  background: rgba(0, 255, 157, 0.1);
+  border-color: #00ff9d;
+}
+
+.settings-icon {
+  font-size: 1.2em;
 }
 
 .messages-container {
@@ -247,39 +465,13 @@ button:disabled {
 }
 
 @media (max-width: 768px) {
-  .chat-container {
-    padding: 0;
-    height: calc(100vh - 50px); /* 移动端导航栏更小 */
-  }
-
   .split-view {
     flex-direction: column;
   }
   
-  .chat-section {
-    border-radius: 0;
-    height: 60vh;
-  }
-  
-  .thinking-section {
-    height: 40vh;
-  }
-
-  .message {
-    max-width: 90%;
-  }
-
-  .input-container {
-    padding: 8px;
-  }
-
-  textarea {
-    max-height: 80px;
-  }
-
-  button {
-    padding: 6px 10px;
-    font-size: 0.85em;
+  .api-settings {
+    width: 100%;
+    max-height: 300px;
   }
 }
 </style> 

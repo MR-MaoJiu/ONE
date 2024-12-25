@@ -12,6 +12,8 @@ export default createStore({
     currentAnalysis: null, // 当前分析数据
     thinkingSteps: [], // AI思考步骤
     isThinking: false, // 是否正在思考
+    enableApiCall: false, // 是否启用API调用功能
+    apiDocs: '', // API文档内容
   },
   
   mutations: {
@@ -42,18 +44,25 @@ export default createStore({
     SET_THINKING(state, status) {
       state.isThinking = status
     },
+    SET_API_CALL_ENABLED(state, enabled) {
+      state.enableApiCall = enabled
+    },
+    SET_API_DOCS(state, docs) {
+      state.apiDocs = docs
+    },
     CLEAR_ALL(state) {
       state.messages = []
       state.memories = []
       state.snapshots = []
       state.thinkingSteps = []
       state.currentAnalysis = null
+      state.apiDocs = ''
     }
   },
   
   actions: {
     // 发送聊天消息
-    async sendMessage({ commit }, message) {
+    async sendMessage({ commit, state }, message) {
       try {
         // 设置思考状态为true
         commit('SET_THINKING', true)
@@ -69,7 +78,9 @@ export default createStore({
         // 发送消息到后端
         const response = await axios.post('/chat', {
           content: message.content,
-          context: message.context || {}
+          context: message.context || {},
+          enable_api_call: state.enableApiCall,
+          api_docs: state.apiDocs
         })
         
         // 更新思考步骤
@@ -102,6 +113,16 @@ export default createStore({
         commit('SET_THINKING', false)
         throw new Error(error.response?.data?.detail || '发送消息失败')
       }
+    },
+    
+    // 更新API调用状态
+    setApiCallEnabled({ commit }, enabled) {
+      commit('SET_API_CALL_ENABLED', enabled)
+    },
+    
+    // 更新API文档
+    setApiDocs({ commit }, docs) {
+      commit('SET_API_DOCS', docs)
     },
     
     // 获取所有记忆

@@ -8,6 +8,8 @@ from core.storage.memory_storage import MemoryStorage
 from core.snapshot.snapshot_manager import SnapshotManager
 from utils.logger import get_logger
 import asyncio
+import httpx
+import json
 
 chat_logger = get_logger('chat')
 
@@ -27,14 +29,16 @@ class ChatManager:
         self.storage = storage
         self.snapshot_manager = snapshot_manager
         self.history = []
+        self.http_client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
         chat_logger.info("聊天管理器初始化完成")
     
-    async def chat(self, query: str) -> Dict[str, Any]:
+    async def chat(self, query: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
         处理用户输入，生成回复
         
         Args:
             query: 用户输入
+            context: 上下文信息，包含API调用相关设置
             
         Returns:
             Dict[str, Any]: 包含回复文本和思考步骤的字典
@@ -43,9 +47,10 @@ class ChatManager:
             chat_logger.info("收到用户输入：%s", query)
             
             # 准备上下文
-            context = {
+            context = context or {}
+            context.update({
                 'history': self.history,
-            }
+            })
             
             # 获取相关记忆
             relevant_snapshots = await self.snapshot_manager.get_relevant_snapshots(query)
@@ -59,8 +64,84 @@ class ChatManager:
                     for snapshot, score in relevant_snapshots
                 ]
             
-            # 生成回复
+            # 如果启用了API调用
+            if context.get('enable_api_call') and context.get('api_docs'):
+                chat_logger.info("API调用已启用，正在分析API文档")
+                # 添加API调用相关的思考步骤
+                thinking_steps = []
+                thinking_steps.append({
+                    'type': 'api_analysis',
+                    'content': '正在分析API文档和用户需求...'
+                })
+                
+                # 让LLM分析API文档和用户需求
+                api_analysis = await self.llm_service.analyze_api(
+                    query=query,
+                    api_docs=context['api_docs'],
+                    context=context
+                )
+                
+                thinking_steps.append({
+                    'type': 'api_plan',
+                    'content': f"API调用计划：\n{api_analysis.get('plan', '无')}"
+                })
+                
+                # 如果需要调用API
+                if api_analysis.get('should_call_api', False):
+                    api_calls = api_analysis.get('api_calls', [])
+                    api_results = []
+                    
+                    for call in api_calls:
+                        thinking_steps.append({
+                            'type': 'api_call',
+                            'content': f"正在调用API：{call.get('url', '')}"
+                        })
+                        
+                        try:
+                            # 执行API调用
+                            response = await self.http_client.request(
+                                method=call.get('method', 'GET'),
+                                url=call['url'],
+                                headers=call.get('headers', {}),
+                                params=call.get('params', {}),
+                                json=call.get('data', {})
+                            )
+                            
+                            # 解析响应
+                            result = response.json() if response.text else None
+                            api_results.append({
+                                'success': True,
+                                'data': result,
+                                'status_code': response.status_code
+                            })
+                            
+                            thinking_steps.append({
+                                'type': 'api_result',
+                                'content': f"API调用成功：\n{json.dumps(result, ensure_ascii=False, indent=2)}"
+                            })
+                            
+                        except Exception as e:
+                            error_msg = f"API调用失败：{str(e)}"
+                            chat_logger.error(error_msg)
+                            api_results.append({
+                                'success': False,
+                                'error': str(e)
+                            })
+                            
+                            thinking_steps.append({
+                                'type': 'api_error',
+                                'content': error_msg
+                            })
+                    
+                    # 更新上下文，加入API调用结果
+                    context['api_results'] = api_results
+            
+            # 生成最终回复
             result = await self.llm_service.chat(query, context)
+            
+            # 如果之前有API调用的思考步骤，添加到结果中
+            if 'thinking_steps' in locals():
+                result['thinking_steps'] = thinking_steps + result.get('thinking_steps', [])
             
             # 更新历史记录
             self._add_to_history(query, result['response'])
