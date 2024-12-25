@@ -41,6 +41,13 @@ export default createStore({
     },
     SET_THINKING(state, status) {
       state.isThinking = status
+    },
+    CLEAR_ALL(state) {
+      state.messages = []
+      state.memories = []
+      state.snapshots = []
+      state.thinkingSteps = []
+      state.currentAnalysis = null
     }
   },
   
@@ -130,5 +137,16 @@ export default createStore({
         throw new Error(error.response?.data?.detail || '更新快照失败')
       }
     },
+    
+    // 清空所有记忆
+    async clearMemories({ commit }) {
+      try {
+        await axios.delete('/memories')
+        commit('CLEAR_ALL')
+      } catch (error) {
+        console.error('清空记忆失败:', error)
+        throw new Error(error.response?.data?.detail || '清空记忆失败')
+      }
+    }
   }
 }) 

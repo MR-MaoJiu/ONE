@@ -42,16 +42,21 @@
       <div class="snapshot-list">
         <div v-for="snapshot in snapshots" :key="snapshot.id" class="snapshot-item">
           <div class="snapshot-header">
-            <span class="category">{{ snapshot.category }}</span>
-            <span class="importance">重要性: {{ (snapshot.importance * 100).toFixed(0) }}%</span>
+            <span class="summary">{{ snapshot.metadata.summary || '无摘要' }}</span>
           </div>
-          <div class="key-points">
+          <div class="content">
+            <p>{{ snapshot.content }}</p>
+          </div>
+          <div class="key-points" v-if="snapshot.metadata.key_points && snapshot.metadata.key_points.length > 0">
             <h4>关键点：</h4>
             <ul>
-              <li v-for="(point, index) in snapshot.key_points" :key="index">
+              <li v-for="(point, index) in snapshot.metadata.key_points" :key="index">
                 {{ point }}
               </li>
             </ul>
+          </div>
+          <div class="snapshot-meta">
+            <span>时间: {{ formatTime(snapshot.timestamp) }}</span>
           </div>
         </div>
       </div>
@@ -252,23 +257,23 @@ button.btn-danger:hover {
 }
 
 .snapshot-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   margin-bottom: 10px;
 }
 
-.category {
+.summary {
   font-weight: bold;
   color: var(--primary-color);
 }
 
-.importance {
-  font-size: 0.9em;
-  color: var(--text-dim);
+.content {
+  margin: 10px 0;
+  color: var(--text-light);
+  line-height: 1.5;
 }
 
 .key-points {
+  margin-top: 10px;
+  
   h4 {
     margin: 0 0 10px 0;
     color: var(--text-light);
@@ -284,6 +289,12 @@ button.btn-danger:hover {
     margin-bottom: 5px;
     color: var(--text-dim);
   }
+}
+
+.snapshot-meta {
+  margin-top: 10px;
+  font-size: 0.9em;
+  color: var(--text-dim);
 }
 
 /* 自定义滚动条 */

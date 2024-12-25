@@ -6,12 +6,9 @@ import json
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-from .storage import MemoryStorage
-from .snapshot import SnapshotManager
-from ..processor.snapshot_processor import SnapshotProcessor
-from config.chat_config import ChatConfig
-from config.memory_config import MemoryConfig
-from services.llm_service import LLMService, LLMConfig
+from core.storage.memory_storage import MemoryStorage
+from core.snapshot.snapshot_manager import SnapshotManager
+from services.llm_service import LLMService
 from utils.logger import get_logger
 
 # 创建logger
@@ -33,15 +30,8 @@ class MemorySystemFactory:
             ChatManager: 聊天管理器实例
         """
         try:
-            # 加载配置
-            if config_path is None:
-                config_path = str(Path(__file__).parent.parent.parent / 'config' / 'default_memory_config.json')
-                
-            memory_factory_logger.info(f"加载配置文件: {config_path}")
-            config = MemoryConfig.from_file(config_path)
-            
             # 创建存储
-            storage = MemoryStorage(storage_dir=config.storage.storage_dir)
+            storage = MemoryStorage()
             memory_factory_logger.info("存储初始化完成")
             
             # 加载 LLM 配置
@@ -63,23 +53,15 @@ class MemorySystemFactory:
             
             # 创建快照管理器
             snapshot_manager = SnapshotManager(storage=storage, llm_service=llm_service)
-            await snapshot_manager.initialize()
             memory_factory_logger.info("快照管理器初始化完成")
-            
-            # 创建快照处理器
-            processor = SnapshotProcessor(
-                snapshot_manager=snapshot_manager,
-                config=config.snapshot
-            )
-            memory_factory_logger.info("快照处理器初始化完成")
             
             # 创建聊天管理器
             # 延迟导入以避免循环依赖
-            from ..chat.chat_manager import ChatManager
+            from core.chat.chat_manager import ChatManager
             chat_manager = ChatManager(
-                config=config.chat,
                 llm_service=llm_service,
-                snapshot_processor=processor
+                storage=storage,
+                snapshot_manager=snapshot_manager
             )
             memory_factory_logger.info("聊天管理器初始化完成")
             

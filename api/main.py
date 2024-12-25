@@ -20,32 +20,6 @@ Features / 功能特点:
 3. LLM Integration / LLM集成
    - Connects to LLM service for generating responses / 连接LLM服务生成响应
    - Handles context and memory integration / 处理上下文和记忆集成
-
-API Endpoints / API端点:
-
-1. Chat / 聊天
-   POST /chat
-   - Process single message / 处理单条消息
-   - Input: Message object / 输入：消息对象
-   - Output: Response object / 输出：响应对象
-
-2. WebSocket Chat / WebSocket聊天
-   WS /ws
-   - Real-time chat connection / 实时聊天连接
-   - Bi-directional message flow / 双向消息流
-
-3. Memory Management / 记忆管理
-   GET /memories
-   - Retrieve all memories / 获取所有记忆
-   
-   GET /snapshots
-   - Retrieve all snapshots / 获取所有快照
-   
-   POST /snapshots/update
-   - Update memory snapshots / 更新记忆快照
-   
-   DELETE /memories
-   - Clear all memories and snapshots / 清空所有记忆和快照
 """
 import os
 import asyncio
@@ -54,9 +28,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from core.chat.chat_manager import ChatManager
 from core.memory.factory import MemorySystemFactory
-from utils.logger import api_logger
+from utils.logger import get_logger
+
+api_logger = get_logger('api')
 
 # Create FastAPI application / 创建FastAPI应用
 app = FastAPI(
@@ -75,14 +50,14 @@ app.add_middleware(
 )
 
 # Create chat manager / 创建聊天管理器
-async def create_chat_manager() -> ChatManager:
+async def create_chat_manager() -> 'ChatManager':
     """Initialize the chat manager with memory system / 初始化带有记忆系统的聊天管理器"""
     chat_manager = await MemorySystemFactory.create_from_config()
     api_logger.info("Chat manager created successfully / 聊天管理器创建成功")
     return chat_manager
 
 # Get chat manager instance / 获取聊天管理器实例
-chat_manager: Optional[ChatManager] = None
+chat_manager: Optional['ChatManager'] = None
 
 @app.on_event("startup")
 async def startup_event():
@@ -109,12 +84,12 @@ class Memory(BaseModel):
         id: Unique identifier for the memory / 记忆的唯一标识符
         content: The memory content / 记忆内容
         timestamp: When the memory was created / 记忆创建时间
-        context: Associated context information / 相关的上下文信息
+        metadata: Associated metadata / 相关的元数据
     """
-    id: str = Field(..., description="Memory ID / 记忆ID")
+    id: int = Field(..., description="Memory ID / 记忆ID")
     content: str = Field(..., description="Memory content / 记忆内容")
     timestamp: str = Field(..., description="Creation timestamp / 创建时间戳")
-    context: Dict[str, Any] = Field(..., description="Context information / 上下文信息")
+    metadata: Dict[str, Any] = Field(..., description="Metadata / 元数据")
 
 class Snapshot(BaseModel):
     """
@@ -122,14 +97,14 @@ class Snapshot(BaseModel):
     
     Attributes / 属性:
         id: Unique identifier for the snapshot / 快照的唯一标识符
-        key_points: List of key information points / 关键信息点列表
-        category: Category of the snapshot / 快照类别
-        importance: Importance score (0-1) / 重要性分数 (0-1)
+        content: The snapshot content / 快照内容
+        timestamp: When the snapshot was created / 快照创建时间
+        metadata: Associated metadata / 相关的元数据
     """
-    id: str = Field(..., description="Snapshot ID / 快照ID")
-    key_points: List[str] = Field(..., description="Key information points / 关键信息点")
-    category: str = Field(..., description="Snapshot category / 快照类别")
-    importance: float = Field(..., ge=0, le=1, description="Importance score / 重要性分数")
+    id: int = Field(..., description="Snapshot ID / 快照ID")
+    content: str = Field(..., description="Snapshot content / 快照内容")
+    timestamp: str = Field(..., description="Creation timestamp / 创建时间戳")
+    metadata: Dict[str, Any] = Field(..., description="Metadata / 元数据")
 
 class ChatResponse(BaseModel):
     """
@@ -186,7 +161,7 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     try:
         await websocket.accept()
-        print("WebSocket连接已建立")
+        api_logger.info("WebSocket连接已建立")
         
         while True:
             try:
@@ -224,25 +199,25 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
                 
             except WebSocketDisconnect:
-                print("WebSocket连接已断开")
+                api_logger.info("WebSocket连接已断开")
                 return
             except Exception as e:
-                print(f"处理消息时发生错误: {str(e)}")
+                api_logger.error(f"处理消息时发生错误: {str(e)}")
                 try:
                     await websocket.send_json({
                         "type": "error",
                         "message": f"处理消息时发生错误: {str(e)}"
                     })
                 except:
-                    print("发送错误消息失败")
+                    api_logger.error("发送错误消息失败")
                 continue
                 
     except WebSocketDisconnect:
-        print("WebSocket连接初始化时断开")
+        api_logger.info("WebSocket连接初始化时断开")
     except Exception as e:
-        print(f"WebSocket连接错误: {str(e)}")
+        api_logger.error(f"WebSocket连接错误: {str(e)}")
     finally:
-        print("WebSocket连接关闭")
+        api_logger.info("WebSocket连接关闭")
 
 @app.get("/memories", response_model=List[Memory])
 async def get_memories():
@@ -259,7 +234,7 @@ async def get_memories():
         if not chat_manager:
             raise HTTPException(status_code=503, detail="Chat manager not initialized / 聊天管理器未初始化")
             
-        memories = await chat_manager.snapshot_processor.get_all_memories()
+        memories = await chat_manager.get_all_memories()
         return memories
         
     except Exception as e:
@@ -281,7 +256,7 @@ async def get_snapshots():
         if not chat_manager:
             raise HTTPException(status_code=503, detail="Chat manager not initialized / 聊天管理器未初始化")
             
-        snapshots = await chat_manager.snapshot_processor.get_all_snapshots()
+        snapshots = await chat_manager.get_all_snapshots()
         return snapshots
         
     except Exception as e:
@@ -303,7 +278,7 @@ async def update_snapshots():
         if not chat_manager:
             raise HTTPException(status_code=503, detail="Chat manager not initialized / 聊天管理器未初始化")
             
-        await chat_manager.snapshot_processor.update_snapshots()
+        await chat_manager.snapshot_manager.update_snapshots()
         return {"message": "Snapshots updated successfully / 快照更新成功"}
         
     except Exception as e:
@@ -325,7 +300,7 @@ async def clear_memories():
         if not chat_manager:
             raise HTTPException(status_code=503, detail="Chat manager not initialized / 聊天管理器未初始化")
             
-        await chat_manager.snapshot_processor.clear_all()
+        await chat_manager.clear_all()
         return {"message": "All memories cleared successfully / 所有记忆清空成功"}
         
     except Exception as e:
