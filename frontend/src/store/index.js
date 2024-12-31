@@ -42,6 +42,9 @@ export default createStore({
     isThinking: false, // 是否正在思考
     enableApiCall: initialApiSettings.enableApiCall, // 是否启用API调用功能
     apiDocs: initialApiSettings.apiDocs, // API文档内容
+    apiSettings: null,
+    thinkingVisible: true,
+    wsConnected: false
   },
   
   mutations: {

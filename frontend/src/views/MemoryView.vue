@@ -1,21 +1,7 @@
 <template>
-  <div class="memory-container">
-    <div class="header">
-      <h2>记忆管理</h2>
-      <div class="button-group">
-        <button @click="clearAllMemories" class="btn-danger">清空记忆</button>
-      </div>
-    </div>
-    
+  <div class="memory-view">
     <!-- Tab 切换 -->
     <div class="tabs">
-      <div 
-        class="tab" 
-        :class="{ active: activeTab === 'snapshots' }"
-        @click="activeTab = 'snapshots'"
-      >
-        快照列表
-      </div>
       <div 
         class="tab" 
         :class="{ active: activeTab === 'memories' }"
@@ -23,315 +9,427 @@
       >
         记忆列表
       </div>
+      <div 
+        class="tab" 
+        :class="{ active: activeTab === 'snapshots' }"
+        @click="activeTab = 'snapshots'"
+      >
+        快照列表
+      </div>
     </div>
-    
+
     <!-- 记忆列表 -->
-    <div v-show="activeTab === 'memories'" class="section">
+    <div v-show="activeTab === 'memories'" class="content-panel">
       <div class="memory-list">
-        <div v-for="memory in memories" :key="memory.id" class="memory-item">
-          <div class="memory-content text-ellipsis">{{ memory.content }}</div>
-          <div class="memory-meta">
-            <span>时间: {{ formatTime(memory.timestamp) }}</span>
+        <div class="list-header">
+          <h2>记忆列表</h2>
+          <div class="header-actions">
+            <button @click="refreshMemories" class="refresh-btn">
+              刷新
+            </button>
+          </div>
+        </div>
+        <div class="list-content">
+          <div v-for="memory in memories" 
+               :key="memory.id" 
+               class="memory-item"
+               @click="showMemoryDetail(memory)">
+            <div class="memory-header">
+              <span class="memory-type">{{ memory.type || '记忆详情' }}</span>
+              <span class="memory-time">{{ formatTime(memory.timestamp) }}</span>
+            </div>
+            <div class="memory-content">{{ truncateContent(memory.content) }}</div>
+            <div class="memory-metadata" v-if="memory.metadata">
+              <div v-if="memory.metadata.summary" class="memory-summary">
+                {{ memory.metadata.summary }}
+              </div>
+              <div v-if="memory.metadata.key_points" class="memory-key-points">
+                {{ memory.metadata.key_points.length }} 个关键点
+              </div>
+            </div>
+            <div class="memory-footer">
+              <span v-if="memory.metadata?.tags?.length" class="memory-tag">
+                {{ memory.metadata.tags.join(', ') }}
+              </span>
+              <span v-if="memory.api_results" class="memory-api">
+                包含API结果
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 快照列表 -->
+    <div v-show="activeTab === 'snapshots'" class="content-panel">
+      <div class="snapshot-list">
+        <div class="list-header">
+          <h2>快照列表</h2>
+          <div class="header-actions">
+            <button @click="refreshSnapshots" class="refresh-btn">
+              刷新
+            </button>
+          </div>
+        </div>
+        <div class="list-content">
+          <div v-for="snapshot in snapshots" 
+               :key="snapshot.id" 
+               class="snapshot-item"
+               @click="showSnapshotDetail(snapshot)">
+            <div class="snapshot-header">
+              <span class="snapshot-type">{{ getSnapshotType(snapshot) }}</span>
+              <span class="snapshot-time">{{ formatTime(snapshot.timestamp) }}</span>
+            </div>
+            <div class="snapshot-summary" v-if="snapshot.metadata?.summary">
+              {{ snapshot.metadata.summary }}
+            </div>
+            <div class="snapshot-content">{{ truncateContent(snapshot.content) }}</div>
+            <div class="snapshot-footer">
+              <span v-if="snapshot.metadata?.key_points?.length" class="snapshot-points">
+                {{ snapshot.metadata.key_points.length }} 个关键点
+              </span>
+            </div>
           </div>
         </div>
       </div>
     </div>
     
-    <!-- 快照列表 -->
-    <div v-show="activeTab === 'snapshots'" class="section">
-      <div class="snapshot-list">
-        <div v-for="snapshot in snapshots" :key="snapshot.id" class="snapshot-item">
-          <div class="snapshot-header">
-            <span class="summary">{{ snapshot.metadata.summary || '无摘要' }}</span>
-          </div>
-          <div class="content">
-            <p>{{ snapshot.content }}</p>
-          </div>
-          <div class="key-points" v-if="snapshot.metadata.key_points && snapshot.metadata.key_points.length > 0">
-            <h4>关键点：</h4>
-            <ul>
-              <li v-for="(point, index) in snapshot.metadata.key_points" :key="index">
-                {{ point }}
-              </li>
-            </ul>
-          </div>
-          <div class="snapshot-meta">
-            <span>时间: {{ formatTime(snapshot.timestamp) }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
+    <!-- 记忆详情对话框 -->
+    <MemoryDetailDialog
+      v-model:show="showDetail"
+      :memory="selectedMemory"
+    />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useStore } from 'vuex'
 import dayjs from 'dayjs'
+import MemoryDetailDialog from '../components/MemoryDetailDialog.vue'
 
 const store = useStore()
-const activeTab = ref('snapshots') // 默认选中快照列表
+const showDetail = ref(false)
+const selectedMemory = ref(null)
+const activeTab = ref('memories')
+const memories = ref([])
+const snapshots = ref([])
 
-// 从store获取数据
-const memories = computed(() => store.state.memories)
-const snapshots = computed(() => store.state.snapshots)
-
-// 在组件挂载时加载数据
-onMounted(async () => {
-  await store.dispatch('fetchMemories')
-  await store.dispatch('fetchSnapshots')
-})
-
-// 清空所有记忆
-async function clearAllMemories() {
-  if (!confirm('确定要清空所有记忆和快照吗？此操作不可恢复！')) {
-    return
-  }
-  
+// 获取记忆列表
+const refreshMemories = async () => {
   try {
-    await store.dispatch('clearMemories')
+    await store.dispatch('fetchMemories')
+    memories.value = store.state.memories
   } catch (error) {
-    console.error('清空记忆失败:', error)
+    console.error('获取记忆失败:', error)
     alert(error.message)
   }
 }
 
+// 获取快照列表
+const refreshSnapshots = async () => {
+  try {
+    await store.dispatch('fetchSnapshots')
+    snapshots.value = store.state.snapshots
+  } catch (error) {
+    console.error('获取快照失败:', error)
+    alert(error.message)
+  }
+}
+
+// 显示记忆详情
+const showMemoryDetail = (memory) => {
+  selectedMemory.value = memory
+  showDetail.value = true
+}
+
+// 显示快照详情
+const showSnapshotDetail = (snapshot) => {
+  selectedMemory.value = snapshot
+  showDetail.value = true
+}
+
 // 格式化时间
-function formatTime(timestamp) {
+const formatTime = (timestamp) => {
   return dayjs(timestamp).format('YYYY-MM-DD HH:mm:ss')
 }
+
+// 截断内容
+const truncateContent = (content) => {
+  if (!content) return ''
+  return content.length > 100 ? content.slice(0, 100) + '...' : content
+}
+
+const getSnapshotType = (snapshot) => {
+  if (!snapshot.type) {
+    return snapshot.metadata?.is_meta ? '元快照' : '记忆快照'
+  }
+  return snapshot.type
+}
+
+onMounted(() => {
+  refreshMemories()
+  refreshSnapshots()
+})
 </script>
 
 <style scoped>
-.memory-container {
+.memory-view {
   padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
-  height: calc(100vh - 50px);
+  height: 100%;
+  background: #1a1a1a;
   display: flex;
   flex-direction: column;
-}
-
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.header h2 {
-  color: var(--primary-color);
-  font-size: 1.5rem;
-  font-weight: 500;
-}
-
-.button-group {
-  display: flex;
-  gap: 10px;
-}
-
-button {
-  padding: 8px 16px;
-  border: none;
-  border-radius: 4px;
-  background: var(--primary-gradient);
-  color: var(--bg-dark);
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-weight: 500;
-}
-
-button.btn-danger {
-  background: linear-gradient(135deg, #ff4d4d 0%, #f02929 100%);
-  color: white;
-}
-
-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 255, 157, 0.3);
-}
-
-button.btn-danger:hover {
-  box-shadow: 0 4px 12px rgba(255, 77, 77, 0.3);
+  gap: 16px;
 }
 
 .tabs {
   display: flex;
   gap: 2px;
-  margin-bottom: 20px;
-  background: var(--bg-dark);
+  background: #2a2a2a;
   padding: 4px;
   border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
 }
 
 .tab {
-  padding: 10px 20px;
-  cursor: pointer;
+  padding: 8px 16px;
   border-radius: 6px;
+  color: #888;
+  cursor: pointer;
   transition: all 0.3s ease;
   font-weight: 500;
-  color: var(--text-dim);
-  border: 1px solid transparent;
 }
 
 .tab:hover {
-  color: var(--text-light);
+  color: #e0e0e0;
   background: rgba(0, 255, 157, 0.1);
-  border-color: rgba(0, 255, 157, 0.2);
 }
 
 .tab.active {
-  background: var(--primary-gradient);
-  color: var(--bg-dark);
-  box-shadow: 0 2px 8px rgba(0, 255, 157, 0.2);
+  background: linear-gradient(135deg, #00ff9d 0%, #00a8ff 100%);
+  color: #1a1a1a;
 }
 
-.section {
+.content-panel {
   flex: 1;
-  overflow-y: auto;
-  margin-bottom: 20px;
+  background: #2a2a2a;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .memory-list {
+  background: #2a2a2a;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.snapshot-list {
-  display: grid;
-  gap: 15px;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-}
-
-.memory-item {
-  padding: 12px;
-  border-radius: 8px;
-  background: var(--bg-dark);
-  box-shadow: 0 2px 8px rgba(0, 150, 255, 0.1);
+.list-header {
+  padding: 16px;
+  border-bottom: 1px solid #333;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 20px;
-  border: 1px solid rgba(0, 255, 157, 0.1);
+}
+
+.list-header h2 {
+  margin: 0;
+  color: #e0e0e0;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.refresh-btn {
+  background: none;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  padding: 6px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.refresh-btn:hover {
+  background: rgba(0, 255, 157, 0.1);
+  border-color: #00ff9d;
+}
+
+.list-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.memory-item {
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .memory-item:hover {
-  border-color: rgba(0, 255, 157, 0.3);
+  border-color: #00ff9d;
+  box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 150, 255, 0.2);
+}
+
+.memory-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.memory-type {
+  font-size: 12px;
+  color: #00ff9d;
+  background: rgba(0, 255, 157, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.memory-time {
+  font-size: 12px;
+  color: #666;
 }
 
 .memory-content {
-  flex: 1;
+  color: #e0e0e0;
+  font-size: 14px;
   line-height: 1.5;
-  color: var(--text-light);
+  margin-bottom: 8px;
+  white-space: pre-wrap;
 }
 
-.text-ellipsis {
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.memory-footer {
+  display: flex;
+  gap: 8px;
 }
 
-.memory-meta {
-  font-size: 0.9em;
-  color: var(--text-dim);
-  white-space: nowrap;
+.memory-meta,
+.memory-api {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #888;
+}
+
+.snapshot-list {
+  background: #2a2a2a;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 150, 255, 0.15);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .snapshot-item {
-  padding: 15px;
+  background: #1a1a1a;
+  border: 1px solid #333;
   border-radius: 8px;
-  background: var(--bg-dark);
-  box-shadow: 0 2px 8px rgba(0, 150, 255, 0.1);
-  border: 1px solid rgba(0, 255, 157, 0.1);
+  padding: 12px;
+  margin-bottom: 12px;
+  cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .snapshot-item:hover {
-  border-color: rgba(0, 255, 157, 0.3);
+  border-color: #00ff9d;
+  box-shadow: 0 0 10px rgba(0, 255, 157, 0.2);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 150, 255, 0.2);
 }
 
 .snapshot-header {
-  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
-.summary {
-  font-weight: bold;
-  color: var(--primary-color);
+.snapshot-type {
+  font-size: 12px;
+  color: #00a8ff;
+  background: rgba(0, 168, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
-.content {
-  margin: 10px 0;
-  color: var(--text-light);
+.snapshot-time {
+  font-size: 12px;
+  color: #666;
+}
+
+.snapshot-summary {
+  color: #00ff9d;
+  font-size: 14px;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  background: rgba(0, 255, 157, 0.1);
+  border-radius: 4px;
+}
+
+.snapshot-content {
+  color: #e0e0e0;
+  font-size: 14px;
   line-height: 1.5;
+  margin-bottom: 8px;
+  white-space: pre-wrap;
 }
 
-.key-points {
-  margin-top: 10px;
-  
-  h4 {
-    margin: 0 0 10px 0;
-    color: var(--text-light);
-  }
-  
-  ul {
-    margin: 0;
-    padding-left: 20px;
-    color: var(--text-light);
-  }
-  
-  li {
-    margin-bottom: 5px;
-    color: var(--text-dim);
-  }
+.snapshot-footer {
+  display: flex;
+  gap: 8px;
 }
 
-.snapshot-meta {
-  margin-top: 10px;
-  font-size: 0.9em;
-  color: var(--text-dim);
+.snapshot-points {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 168, 255, 0.1);
+  color: #00a8ff;
 }
 
-/* 自定义滚动条 */
-.section::-webkit-scrollbar {
-  width: 4px;
+.memory-metadata {
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.section::-webkit-scrollbar-track {
+.memory-summary {
+  color: #00ff9d;
+  font-size: 14px;
+  padding: 4px 8px;
+  background: rgba(0, 255, 157, 0.1);
+  border-radius: 4px;
+}
+
+.memory-key-points {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(0, 168, 255, 0.1);
+  color: #00a8ff;
+}
+
+.memory-tag {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
   background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-}
-
-.section::-webkit-scrollbar-thumb {
-  background: var(--primary-gradient);
-  border-radius: 2px;
-}
-
-@media (max-width: 768px) {
-  .memory-container {
-    padding: 10px;
-  }
-
-  .tabs {
-    padding: 3px;
-  }
-
-  .tab {
-    padding: 8px 12px;
-    font-size: 0.9em;
-  }
-
-  .snapshot-list {
-    grid-template-columns: 1fr;
-  }
-
-  .memory-item, .snapshot-item {
-    padding: 10px;
-  }
+  color: #888;
 }
 </style> 

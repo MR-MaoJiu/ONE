@@ -93,6 +93,11 @@ const isLoadingHistory = ref(false)
 const pageSize = 20
 const currentPage = ref(1)
 
+// 切换API设置面板
+const toggleApiSettings = () => {
+  showApiSettings.value = !showApiSettings.value
+}
+
 // 从store获取状态
 const messages = computed(() => store.state.messages)
 const thinkingSteps = computed(() => store.state.thinkingSteps)
