@@ -39,10 +39,8 @@
           </button>
         </div>
         <div class="messages-container" ref="messagesContainer">
-          <div v-for="(message, index) in messages" :key="index" 
-               :class="['message', message.type === 'user' ? 'user-message' : 'system-message']">
-            <div class="message-content">{{ message.content }}</div>
-            <div class="message-time">{{ formatTime(message.timestamp) }}</div>
+          <div v-for="message in messages" :key="message.id || message.timestamp" class="message-wrapper">
+            <MessageItem :message="message" />
           </div>
         </div>
         
@@ -83,11 +81,17 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useStore } from 'vuex'
 import dayjs from 'dayjs'
 import AIThinkingViewer from '../components/AIThinkingViewer.vue'
+import VirtualList from 'vue3-virtual-scroll-list'
+import MessageItem from '../components/MessageItem.vue'
+import { useThrottleFn } from '@vueuse/core'
 
 const store = useStore()
 const inputMessage = ref('')
 const messagesContainer = ref(null)
 const showApiSettings = ref(false)
+const isLoadingHistory = ref(false)
+const pageSize = 20
+const currentPage = ref(1)
 
 // 从store获取状态
 const messages = computed(() => store.state.messages)
@@ -108,15 +112,23 @@ const apiDocs = computed({
 // 监听消息列表变化，自动滚动到底部
 watch(messages, () => {
   nextTick(() => {
-    if (messagesContainer.value) {
-      messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-    }
+    scrollToBottom()
   })
 })
 
-// 切换API设置面板
-function toggleApiSettings() {
-  showApiSettings.value = !showApiSettings.value
+// 添加滚动到底部的方法
+const scrollToBottom = () => {
+  if (messagesContainer.value) {
+    const container = messagesContainer.value
+    const scrollHeight = container.scrollHeight
+    const maxScrollTop = scrollHeight - container.clientHeight
+    
+    // 使用平滑滚动
+    container.scrollTo({
+      top: maxScrollTop,
+      behavior: 'smooth'
+    })
+  }
 }
 
 // 发送消息
@@ -130,6 +142,8 @@ async function sendMessage() {
     
     // 清空输入框
     inputMessage.value = ''
+    // 滚动到底部
+    scrollToBottom()
   } catch (error) {
     console.error('发送消息失败:', error)
     alert(error.message)
@@ -165,6 +179,39 @@ function toggleThinking() {
     thinkingViewer.value.toggleThinking()
   }
 }
+
+// 获取消息的唯一键
+const getItemKey = (item) => item.id || item.timestamp
+
+// 处理滚动事件
+const handleScroll = useThrottleFn(async (e, data) => {
+  // 当滚动到顶部时加载更多历史消息
+  if (data.scrollTop < 50 && !isLoadingHistory.value) {
+    await loadMoreHistory()
+  }
+}, 200)
+
+// 加载更多历史消息
+const loadMoreHistory = async () => {
+  if (isLoadingHistory.value) return
+  
+  isLoadingHistory.value = true
+  try {
+    // 从后端获取更多历史消息
+    const moreMessages = await fetchHistoryMessages(currentPage.value, pageSize)
+    if (moreMessages.length > 0) {
+      messages.value.unshift(...moreMessages)
+      currentPage.value++
+    }
+  } finally {
+    isLoadingHistory.value = false
+  }
+}
+
+// 在组件挂载时也滚动到底部
+onMounted(() => {
+  scrollToBottom()
+})
 </script>
 
 <style scoped>
@@ -225,10 +272,25 @@ function toggleThinking() {
 .messages-container {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+}
+
+.message-wrapper {
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.message-wrapper:last-child {
+  margin-bottom: 16px;
+}
+
+.loading-more {
+  text-align: center;
+  padding: 1rem;
+  color: #666;
 }
 
 .message {

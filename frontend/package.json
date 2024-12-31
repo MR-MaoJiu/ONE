@@ -10,10 +10,14 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "@vueuse/core": "^10.7.0",
     "axios": "^1.6.2",
     "dayjs": "^1.11.10",
+    "dompurify": "^3.0.6",
+    "markdown-it": "^14.0.0",
     "vue": "^3.3.11",
     "vue-router": "^4.2.5",
+    "vue3-virtual-scroll-list": "^0.2.1",
     "vuex": "^4.1.0"
   },
   "devDependencies": {
