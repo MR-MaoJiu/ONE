@@ -199,63 +199,54 @@ class SnapshotManager:
         self,
         snapshots: List[DetailSnapshot]
     ) -> List[List[DetailSnapshot]]:
-        """使用LLM进行主题聚类"""
+        """使用向量相似度进行主题聚类"""
         try:
-            # 准备数据
-            snapshots_data = [
-                {
-                    "id": s.snapshot_id,
-                    "summary": s.summary,
-                    "key_elements": s.key_elements,
-                    "emotion_tags": s.emotion_tags
-                }
-                for s in snapshots
-            ]
+            if not snapshots:
+                return []
+                
+            # 获取所有快照的向量表示
+            vectors = []
+            for snapshot in snapshots:
+                # 使用快照的摘要和关键元素生成向量
+                text = f"{snapshot.summary}\n{' '.join(snapshot.key_elements)}"
+                vector = await self.vector_store.get_embedding(text)
+                vectors.append(vector)
             
-            # 构建聚类提示词
-            prompt = f"""
-            对以下快照进行主题聚类:
-            {json.dumps(snapshots_data, ensure_ascii=False)}
-            
-            请返回聚类结果,格式如下:
-            {{
-                "clusters": [
-                    {{
-                        "topic": "主题1",
-                        "snapshot_ids": ["id1", "id2"]
-                    }}
-                ]
-            }}
-            """
-            
-            # 调用LLM进行聚类
-            result = await asyncio.to_thread(
-                self.llm_service.generate_json,
-                prompt
-            )
-            
-            if not result or "clusters" not in result:
-                raise Exception("聚类失败")
-            
-            # 转换结果
+            # 使用层次聚类
             clusters = []
-            for cluster in result["clusters"]:
-                snapshot_cluster = []
-                for snapshot_id in cluster["snapshot_ids"]:
-                    snapshot = next(
-                        (s for s in snapshots if s.snapshot_id == snapshot_id),
-                        None
+            used = set()
+            
+            for i, snapshot in enumerate(snapshots):
+                if i in used:
+                    continue
+                    
+                cluster = [snapshot]
+                used.add(i)
+                
+                # 找到相似的快照
+                for j, other in enumerate(snapshots):
+                    if j in used or j == i:
+                        continue
+                        
+                    # 计算余弦相似度
+                    similarity = self.vector_store.compute_similarity(
+                        vectors[i],
+                        vectors[j]
                     )
-                    if snapshot:
-                        snapshot_cluster.append(snapshot)
-                if snapshot_cluster:
-                    clusters.append(snapshot_cluster)
+                    
+                    # 如果相似度超过阈值，加入同一个簇
+                    if similarity > 0.8:  # 可调整的阈值
+                        cluster.append(other)
+                        used.add(j)
+                
+                clusters.append(cluster)
             
             return clusters
             
         except Exception as e:
-            memory_logger.error(f"快照聚类失败: {str(e)}")
-            return [[s] for s in snapshots]  # 失败时每个快照单独一组
+            memory_logger.error(f"聚类失败: {str(e)}")
+            # 如果聚类失败，将每个快照作为单独的簇
+            return [[s] for s in snapshots]
     
     async def _optimize_snapshots(self) -> None:
         """优化快照"""

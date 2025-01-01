@@ -1,21 +1,26 @@
 <template>
   <div class="memory-view">
     <!-- Tab 切换 -->
-    <div class="tabs">
-      <div 
-        class="tab" 
-        :class="{ active: activeTab === 'memories' }"
-        @click="activeTab = 'memories'"
-      >
-        记忆列表
+    <div class="tabs-container">
+      <div class="tabs">
+        <div 
+          class="tab" 
+          :class="{ active: activeTab === 'memories' }"
+          @click="activeTab = 'memories'"
+        >
+          记忆列表
+        </div>
+        <div 
+          class="tab" 
+          :class="{ active: activeTab === 'snapshots' }"
+          @click="activeTab = 'snapshots'"
+        >
+          快照列表
+        </div>
       </div>
-      <div 
-        class="tab" 
-        :class="{ active: activeTab === 'snapshots' }"
-        @click="activeTab = 'snapshots'"
-      >
-        快照列表
-      </div>
+      <button @click="clearAll" class="clear-all-btn">
+        清空全部
+      </button>
     </div>
 
     <!-- 记忆列表 -->
@@ -165,6 +170,35 @@ const getSnapshotType = (snapshot) => {
     return snapshot.metadata?.is_meta ? '元快照' : '记忆快照'
   }
   return snapshot.type
+}
+
+// 清空记忆
+const clearMemories = async () => {
+  if (!confirm('确定要清空所有记忆吗？此操作不可恢复。')) {
+    return
+  }
+  try {
+    await store.dispatch('clearMemories')
+    await refreshMemories()
+  } catch (error) {
+    console.error('清空记忆失败:', error)
+    alert(error.message)
+  }
+}
+
+// 清空所有数据
+const clearAll = async () => {
+  if (!confirm('确定要清空所有记忆和快照吗？此操作不可恢复。')) {
+    return
+  }
+  try {
+    await store.dispatch('clearMemories')
+    await refreshMemories()
+    await refreshSnapshots()
+  } catch (error) {
+    console.error('清空失败:', error)
+    alert('清空失败: ' + error.message)
+  }
 }
 
 onMounted(() => {
@@ -431,5 +465,43 @@ onMounted(() => {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.1);
   color: #888;
+}
+
+.clear-btn {
+  padding: 6px 12px;
+  border-radius: 6px;
+  background: #ff4757;
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+}
+
+.clear-btn:hover {
+  background: #ff6b81;
+}
+
+.tabs-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.clear-all-btn {
+  padding: 8px 16px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #ff4d4d 0%, #ff0000 100%);
+  color: white;
+  border: none;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.clear-all-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 </style> 
