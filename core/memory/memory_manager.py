@@ -39,23 +39,28 @@ class MemoryManager:
         
         memory_logger.info("记忆管理器初始化完成")
         
+        # 优化任务
+        self._optimization_task = None
+    
+    async def initialize(self):
+        """异步初始化"""
         # 加载已有记忆
-        self._load_existing_memories()
+        await self._load_existing_memories()
         
         # 启动定期优化任务
-        self._start_optimization_task()
+        await self._start_optimization_task()
     
-    def _load_existing_memories(self):
+    async def _load_existing_memories(self):
         """加载已有的记忆数据"""
         try:
             vector_path = os.path.join(self.storage_path, 'vectors')
             if os.path.exists(vector_path):
-                asyncio.run(self.retriever.load_state(vector_path))
+                await self.retriever.load_state(vector_path)
                 memory_logger.info("已加载现有记忆")
         except Exception as e:
             memory_logger.error(f"加载记忆失败: {str(e)}")
     
-    def _start_optimization_task(self):
+    async def _start_optimization_task(self):
         """启动定期优化任务"""
         async def optimize_periodically():
             while True:
@@ -65,9 +70,19 @@ class MemoryManager:
                     await self.optimize_index()
                 except Exception as e:
                     memory_logger.error(f"定期优化失败: {str(e)}")
+                    await asyncio.sleep(60)  # 发生错误时等待1分钟后重试
         
         # 在后台运行优化任务
-        asyncio.create_task(optimize_periodically())
+        self._optimization_task = asyncio.create_task(optimize_periodically())
+    
+    async def cleanup(self):
+        """清理资源"""
+        if self._optimization_task:
+            self._optimization_task.cancel()
+            try:
+                await self._optimization_task
+            except asyncio.CancelledError:
+                pass
     
     async def set_api_result(self, memory_id: str, result: Any) -> None:
         """

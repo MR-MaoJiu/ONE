@@ -30,12 +30,14 @@ from pydantic import BaseModel, Field
 
 from core.memory.factory import MemorySystemFactory
 from utils.logger import get_logger
+from api.routes import memory_router, chat_router, voice_router
+import uvicorn
 
 api_logger = get_logger('api')
 
 # Create FastAPI application / 创建FastAPI应用
 app = FastAPI(
-    title="AI Assistant API / AI助手API",
+    title="ONE - AI永久记忆系统",
     description="API interface for AI assistant system with memory capabilities / 具有记忆能力的AI助手系统API接口",
     version="1.0.0"
 )
@@ -43,11 +45,17 @@ app = FastAPI(
 # Configure CORS / 配置CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Frontend URL / 前端URL
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
+
+# 注册路由
+app.include_router(memory_router.router, prefix="/api")
+app.include_router(chat_router.router, prefix="/api")
+app.include_router(voice_router.router, prefix="/api")
 
 # Create chat manager / 创建聊天管理器
 async def create_chat_manager() -> 'ChatManager':
@@ -61,9 +69,24 @@ chat_manager: Optional['ChatManager'] = None
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize the chat manager on application startup / 在应用启动时初始化聊天管理器"""
+    """Initialize services on application startup / 在应用启动时初始化服务"""
     global chat_manager
+    
+    # 初始化聊天管理器
     chat_manager = await create_chat_manager()
+    
+    # 初始化记忆管理器
+    await voice_router.memory_manager.initialize()
+    
+    api_logger.info("All services initialized successfully / 所有服务初始化成功")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Cleanup resources on application shutdown / 在应用关闭时清理资源"""
+    if voice_router.memory_manager:
+        await voice_router.memory_manager.cleanup()
+    
+    api_logger.info("All services cleaned up successfully / 所有服务清理完成")
 
 class Message(BaseModel):
     """
@@ -344,5 +367,4 @@ async def clear_memories():
         raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000) 
+    uvicorn.run(app, host="0.0.0.0", port=8000, reload=True) 

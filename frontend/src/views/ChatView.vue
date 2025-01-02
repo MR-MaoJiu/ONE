@@ -84,6 +84,7 @@ import AIThinkingViewer from '../components/AIThinkingViewer.vue'
 import VirtualList from 'vue3-virtual-scroll-list'
 import MessageItem from '../components/MessageItem.vue'
 import { useThrottleFn } from '@vueuse/core'
+import { ElMessage } from 'element-plus'
 
 const store = useStore()
 const inputMessage = ref('')
@@ -142,7 +143,8 @@ async function sendMessage() {
   
   try {
     await store.dispatch('sendMessage', {
-      content: inputMessage.value
+      content: inputMessage.value,
+      context: {}
     })
     
     // 清空输入框
@@ -151,7 +153,7 @@ async function sendMessage() {
     scrollToBottom()
   } catch (error) {
     console.error('发送消息失败:', error)
-    alert(error.message)
+    ElMessage.error(error.message || '发送消息失败')
   }
 }
 
