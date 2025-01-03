@@ -2,6 +2,68 @@
 
 这是一个基于大语言模型的AI助手系统，具有记忆管理、对话能力、语音交互和API调用功能。
 
+## 安装说明
+
+### 环境要求
+- Python 3.10+
+- Node.js 16+
+- npm 8+
+- CUDA 11.8+ (如果使用 GPU)
+
+### 后端安装
+1. 创建并激活虚拟环境:
+```bash
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+# 或
+.\venv\Scripts\activate  # Windows
+```
+
+2. 安装依赖:
+```bash
+# CPU 版本
+pip install -r requirements.txt
+
+# GPU 版本 (需要 CUDA 支持)
+pip install -r requirements-gpu.txt
+```
+
+### 前端安装
+1. 进入前端目录:
+```bash
+cd frontend
+```
+
+2. 安装依赖:
+```bash
+npm install
+```
+
+## 运行说明
+
+### 启动后端服务
+1. 确保在项目根目录下并已激活虚拟环境
+2. 运行:
+```bash
+python run.py
+```
+后端服务将在 http://localhost:8000 启动
+
+### 启动前端服务
+1. 在另一个终端中进入前端目录:
+```bash
+cd frontend
+```
+
+2. 运行开发服务器:
+```bash
+npm run dev
+```
+前端将在 http://localhost:3000 启动
+
+### 访问应用
+打开浏览器访问 http://localhost:3000 即可使用系统
+
 ## 主要特性
 
 - 智能对话：基于大语言模型的自然对话能力
@@ -200,6 +262,51 @@
     - `asr_model`: 语音识别模型配置
     - `tts_model`: 语音合成模型配置
     - `vad_threshold`: 语音活动检测阈值
+
+### 硬件加速配置
+系统支持 CPU 和 GPU 两种运行模式，可以通过环境变量或配置文件进行设置：
+
+1. 环境变量配置:
+```bash
+# 使用 CPU
+export DEVICE=cpu
+
+# 使用 GPU (需要 CUDA 支持)
+export DEVICE=cuda
+
+# 使用特定 GPU (如果有多个 GPU)
+export CUDA_VISIBLE_DEVICES=0  # 使用第一个 GPU
+```
+
+2. 配置文件设置 (`config/hardware_config.json`):
+```json
+{
+  "device": "cuda",  // 或 "cpu"
+  "gpu_id": 0,      // 使用特定 GPU 的 ID
+  "use_half": true, // 是否使用半精度 (FP16) 加速
+  "batch_size": 32, // 批处理大小
+  "num_threads": 4  // CPU 线程数 (仅 CPU 模式有效)
+}
+```
+
+3. 性能建议:
+- GPU 模式:
+  - 适合大规模数据处理
+  - 语音合成速度提升 5-10 倍
+  - 向量检索速度提升 3-5 倍
+  - 需要较大显存 (建议 8GB+)
+
+- CPU 模式:
+  - 适合轻量级应用
+  - 无需特殊硬件
+  - 部署更加简单
+  - 功耗更低
+
+4. 注意事项:
+- GPU 模式需要正确安装 CUDA 和 cuDNN
+- 建议根据实际负载选择合适的运行模式
+- 可以通过监控工具观察资源使用情况
+- 在资源受限环境下优先使用 CPU 模式
 
 ## API接口
 
